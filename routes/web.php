@@ -31,3 +31,32 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
 
 });
+
+Route::get('/artisan/{command}', function ($command) {
+    $allowedCommands = [
+        'storage-link' => 'storage:link',
+        'cache-clear' => 'cache:clear',
+        'config-clear' => 'config:clear',
+        'config-cache' => 'config:cache',
+        'route-clear' => 'route:clear',
+        'route-cache' => 'route:cache',
+        'view-clear' => 'view:clear',
+        'permission-cache-reset' => 'permission:cache-reset',
+        'optimize' => 'optimize',
+        'migrate' => 'migrate',
+        'migrate-refresh' => 'migrate:refresh',
+        'migrate-rollback' => 'migrate:rollback',
+        'db-seed' => 'db:seed',
+        'queue-work' => 'queue:work',
+        'queue-restart' => 'queue:restart',
+        'make-controller' => 'make:controller',
+        'make-model' => 'make:model',
+    ];
+
+    if (!array_key_exists($command, $allowedCommands)) {
+        abort(403, 'Command not allowed.');
+    }
+
+    \Illuminate\Support\Facades\Artisan::call($allowedCommands[$command]);
+    return response()->json(['status' => 'success', 'message' => 'Command executed: ' . $allowedCommands[$command]]);
+});

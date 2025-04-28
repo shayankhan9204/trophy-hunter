@@ -41,6 +41,8 @@ class TeamMembersImport implements ToModel
                 'team_id' => $team->id,
                 'category' => $category,
             ]);
+
+            $user->refresh();
         } else {
             $user->update([
                 'name' => $name,

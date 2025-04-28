@@ -37,6 +37,15 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected static function booted()
+    {
+        static::created(function (User $user) {
+            $user->updateQuietly([
+                'angular_uid' => 'AGL-' . str_pad($user->id, 6, '0', STR_PAD_LEFT),
+            ]);
+        });
+    }
+
     /**
      * Get the attributes that should be cast.
      *

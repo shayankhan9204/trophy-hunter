@@ -140,7 +140,7 @@ class EventController extends Controller
     {
         $teams = Team::get();
         $event = Event::where('id', $id)
-            ->with('contacts', 'notificaitons', 'rules', 'teams')->first();
+            ->with('contacts', 'notifications', 'rules', 'teams')->first();
 
         return view('portal.events.edit', compact('teams', 'event'));
     }

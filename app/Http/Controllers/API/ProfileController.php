@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Helpers\APIResponse;
 use App\Http\Controllers\Controller;
+use App\Models\Team;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -62,4 +63,14 @@ class ProfileController extends Controller
             return APIResponse::error('Update failed', ['error' => $e->getMessage()], 500);
         }
     }
+
+    public function myTeam()
+    {
+        $team = Team::where('id' , Auth::user()->team_id)->with('anglers')->first();
+        return APIResponse::success('Team Fetched Successfully', [
+            'team' => $team,
+        ]);
+    }
+
+
 }
