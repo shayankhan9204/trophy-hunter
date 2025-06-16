@@ -24,6 +24,10 @@
                     <div class="col-sm-6">
                         <div class="page-title-box">
                             <div class="float-right">
+                                <a href="{{ route('teams.export') }}" class="btn btn-gradient-primary">
+                                    Export Teams
+                                </a>
+
                                 <button class="btn btn-gradient-primary" id="openCsvUploadModal">
                                     Upload CSV
                                 </button>
@@ -42,6 +46,33 @@
                         <div class="card">
                             <div class="card-body">
 
+                                <form method="GET" action="{{ route('team.index') }}">
+                                    <div class="d-flex mb-3 justify-content-between align-items-end">
+                                        <div class="w-75">
+                                            <label for="event_id" class="form-label">Select Event</label>
+                                            <select name="event_id" id="event_id" class="form-control" onchange="this.form.submit()">
+                                                <option value="">All Events</option>
+                                                @foreach($events as $event)
+                                                    <option value="{{ $event->id }}" {{ request('event_id') == $event->id ? 'selected' : '' }}>
+                                                        {{ $event->name }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+
+                                        <a href="javascript:void(0)" class="btn btn-danger"
+                                           onclick="confirmDelete({{ request('event_id') ?? 'null' }})">
+                                            Delete All
+                                        </a>
+                                    </div>
+                                </form>
+
+                                <form id="delete-form" method="POST" action="{{ route('delete.event.teams') }}" style="display:none;">
+                                    @csrf
+                                    @method('DELETE')
+                                    <input type="hidden" name="event_id" id="delete_event_id">
+                                </form>
+
                                 <div class="table-responsive">
                                     <table class="sifu-datatable table table-striped table-bordered">
                                         <thead>
@@ -49,6 +80,7 @@
                                             <th>#</th>
                                             <th>Team UID</th>
                                             <th>Team Name</th>
+                                            <th>Team Memebers</th>
                                             <th>Action</th>
                                         </tr>
                                         </thead>
@@ -58,12 +90,21 @@
                                                 <td>{{ $key + 1 }}</td>
                                                 <td>{{ $team->team_uid ?? '' }}</td>
                                                 <td>{{ $team->name ?? '' }}</td>
+                                                <td>{{ $team->anglers->count() ?? '-' }}</td>
                                                 <td>
                                                     <span class="uitooltip sifu-ticon" data-toggle="tooltip"
                                                           data-placement="top" data-original-title="Edit">
                                                       <a href="{{ route('team.edit' , ['id' => $team->id]) }}"
                                                          class="mr-2"><i class="fas fa-pencil-alt"></i></a>
                                                     </span>
+
+                                                    <span class="uitooltip sifu-ticon" data-toggle="tooltip"
+                                                          data-placement="top" data-original-title="Delete">
+                                                        <a href="#" class="mr-2 text-danger" onclick="singleConfirmDelete({{ $team->id }})">
+                                                            <i class="fas fa-trash"></i>
+                                                        </a>
+                                                    </span>
+
                                                 </td>
                                             </tr>
                                         @empty
@@ -91,11 +132,23 @@
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title">Upload Anglers CSV</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                <button type="button" class="btn-close" data-dismiss="modal"
                                         aria-label="Close"></button>
                             </div>
 
                             <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="csv_file" class="form-label">Select Event</label>
+                                    <select name="event_id" class="form-control" required>
+                                        <option disabled selected value="">Select event</option>
+                                        @foreach($events as $event)
+                                            <option value="{{ $event->id }}">
+                                                {{ $event->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
                                 <div class="mb-3">
                                     <label for="csv_file" class="form-label">Choose CSV File</label>
                                     <input type="file" class="form-control" name="csv_file" id="csv_file" accept=".csv"
@@ -107,7 +160,7 @@
 
                             <div class="modal-footer">
                                 <button type="submit" class="btn btn-primary">Upload</button>
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                             </div>
                         </div>
                     </form>
@@ -121,6 +174,39 @@
 @endsection
 
 @section('script')
+
+    <script>
+        function singleConfirmDelete(teamId) {
+            const eventSelect = document.querySelector('[name="event_id"]');
+            const selectedEventId = eventSelect.value;
+
+            if (!selectedEventId) {
+                alert('Please select an event first.');
+                return;
+            }
+
+            const confirmed = confirm('Are you sure you want to remove this team from the selected event?');
+            if (confirmed) {
+                const baseUrl = "{{ url('team-detach') }}";
+                const url = `${baseUrl}?team_id=${teamId}&event_id=${selectedEventId}`;
+                window.location.href = url;
+            }
+        }
+    </script>
+
+    <script>
+        function confirmDelete(eventId) {
+            if (!eventId) {
+                alert("Please select an event first.");
+                return;
+            }
+
+            if (confirm("Are you sure you want to delete all teams for this event?")) {
+                document.getElementById('delete_event_id').value = eventId;
+                document.getElementById('delete-form').submit();
+            }
+        }
+    </script>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {

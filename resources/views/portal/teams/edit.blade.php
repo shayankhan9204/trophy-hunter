@@ -54,6 +54,18 @@
                                                     <div class="col-2 p-0">
                                                         <div class="col-lg-12">
                                                             <div class="form-group">
+                                                                <label class="m-0">Angular Number</label>
+                                                                <input type="text" class="form-control"
+                                                                       name="angler_uid[]"
+                                                                       value="{{ $angular->pivot->angular_uid ?? '' }}"
+                                                                       placeholder="Type Name ">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-2 p-0">
+                                                        <div class="col-lg-12">
+                                                            <div class="form-group">
                                                                 <label class="m-0">Name</label>
                                                                 <input type="text" class="form-control"
                                                                        name="angler_name[]"
@@ -100,11 +112,22 @@
                                                                         value="Junior" {{ $angular->category === 'junior' ? 'selected' : '' }}>
                                                                         Junior
                                                                     </option>
+                                                                    <option
+                                                                        value="Senior" {{ $angular->category === 'senior' ? 'selected' : '' }}>
+                                                                        Senior
+                                                                    </option>
+                                                                    <option
+                                                                        value="Female" {{ $angular->category === 'female' ? 'selected' : '' }}>
+                                                                        Female
+                                                                    </option>
+                                                                    <option
+                                                                        value="Veteran" {{ $angular->category === 'veteran' ? 'selected' : '' }}>
+                                                                        Veteran
+                                                                    </option>
                                                                 </select>
                                                             </div>
                                                         </div>
                                                     </div>
-
 
                                                     <div
                                                         class="col-1 d-flex justify-content-between align-items-center">
@@ -174,6 +197,18 @@
                                                                     <option
                                                                         value="junior">
                                                                         Junior
+                                                                    </option>
+                                                                    <option
+                                                                        value="senior">
+                                                                        Senior
+                                                                    </option>
+                                                                    <option
+                                                                        value="female">
+                                                                        Female
+                                                                    </option>
+                                                                    <option
+                                                                        value="veteran">
+                                                                        Veteran
                                                                     </option>
                                                                 </select>
                                                             </div>

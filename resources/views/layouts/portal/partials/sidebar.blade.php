@@ -25,13 +25,25 @@
                     class="menu-arrow"></span></a>
         </li>
 
+        <li>
+            <a href="{{ route('specie.index') }}"><i
+                    class="ti-view-list-alt"></i><span>Species</span><span
+                    class="menu-arrow"></span></a>
+        </li>
+
         <li class="nk-menu-heading">
             <h6 class="overline-title">Reports</h6>
         </li>
 
         <li>
-            <a href="#"><i
-                    class="ti-view-list-alt"></i><span>Reports</span><span
+            <a href="{{ route('team.ranking.report') }}"><i
+                    class="ti-view-list-alt"></i><span>Team Ranking Report</span><span
+                    class="menu-arrow"></span></a>
+        </li>
+
+        <li>
+            <a href="{{ route('individual.fish.report') }}"><i
+                    class="ti-view-list-alt"></i><span>Individual Fish Report</span><span
                     class="menu-arrow"></span></a>
         </li>
 
@@ -40,7 +52,7 @@
         </li>
 
         <li>
-            <a href="#"><i
+            <a href="{{ route('notification.index') }}"><i
                     class="ti-view-list-alt"></i><span>Notifications</span><span
                     class="menu-arrow"></span></a>
         </li>

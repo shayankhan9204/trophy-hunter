@@ -11,7 +11,7 @@ class TeamObserver
      */
     public function created(Team $team)
     {
-        $team->team_uid = 'TEAM-' . str_pad($team->id, 6, '0', STR_PAD_LEFT);
+        $team->team_uid = 'TEAM-' . str_pad($team->id, 3, '0', STR_PAD_LEFT);
         $team->saveQuietly();
     }
 

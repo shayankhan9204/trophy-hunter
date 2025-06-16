@@ -1,33 +1,29 @@
 @extends('layouts.portal.app')
 
 @section('content')
-
     <div class="page-wrapper sifu-cform">
 
         <div class="page-content">
-
             <div class="container-fluid">
 
-                <!-- Page-Title -->
                 <div class="row">
                     <div class="col-sm-6">
                         <div class="page-title-box">
-                            <h4 class="page-title">Notifications</h4>
+                            <h4 class="page-title">Species</h4>
                             <div class="float-left">
                                 <ol class="breadcrumb">
-                                    <li class="breadcrumb-item"><a href="javascript:void(0);">Dashboard</a></li>
-                                    <li class="breadcrumb-item"><a href="javascript:void(0);">App
-                                            Management</a></li>
-                                    <li class="breadcrumb-item active">Notifications</li>
+                                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                                    <li class="breadcrumb-item"><a href="{{ route('specie.index') }}">Species</a></li>
+                                    <li class="breadcrumb-item active">Species</li>
                                 </ol>
                             </div>
                         </div><!--end page-title-box-->
-                    </div><!--end col-->
+                    </div>
 
                     <div class="col-sm-6">
                         <div class="page-title-box">
                             <div class="float-right">
-                                <a href="{{ route('notification.create') }}" class="btn btn-gradient-primary">Add Notification</a>
+                                <a href="{{ route('specie.create') }}" class="btn btn-gradient-primary">Add Specie</a>
                             </div>
                         </div>
                     </div>
@@ -41,15 +37,17 @@
                                 <div class="table-responsive">
                                     <table class="sifu-datatable table table-striped table-bordered">
                                         <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Event Name</th>
-                                            <th>Title</th>
-                                            <th>Message</th>
-                                            <th>Notify Date</th>
-                                        </tr>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Name</th>
+                                                <th>Formula</th>
+                                                <th>Validation Rule</th>
+                                                <th>Minimum Validation Rule</th>
+                                                <th>Action</th>
+                                            </tr>
                                         </thead>
                                         <tbody>
+
                                         </tbody>
                                     </table>
                                 </div>
@@ -58,64 +56,57 @@
                     </div> <!-- end col -->
                 </div> <!-- end row -->
 
-            </div>
+            </div><!-- container -->
 
         </div>
     </div>
 @endsection
 
+
 @section('script')
     <script>
-        $(document).ready(function () {
-            const notiColumns = [{
-                data: 'id',
-                name: 'id'
+        $(document).ready(function() {
+            const userColumns = [{
+                    data: 'id',
+                    name: 'id'
                 },
                 {
-                    data: 'user_uid',
-                    name: 'user_uid'
+                    data: 'name',
+                    name: 'name'
                 },
                 {
-                    data: 'user_name',
-                    name: 'user_name'
+                    data: 'formula',
+                    name: 'formula'
                 },
                 {
-                    data: 'type',
-                    name: 'type'
+                    data: 'validation_rule',
+                    name: 'validation_rule'
                 },
                 {
-                    data: 'title',
-                    name: 'title'
+                    data: 'min_validation_rule',
+                    name: 'min_validation_rule'
                 },
                 {
-                    data: 'message',
-                    name: 'message'
-                },
-                {
-                    data: 'notify_date',
-                    name: 'notify_date'
-                },
+                    data: 'action',
+                    name: 'action',
+                    orderable: false,
+                    searchable: false
+                }
             ];
 
             var table = $('.sifu-datatable').DataTable({
-                ajax: '{{ route('notification.index') }}',
-                columns: notiColumns,
+                ajax: '{{ route('specie.index') }}',
+                columns: userColumns,
                 lengthChange: true,
                 searching: false,
                 dom: '<"row"<"col-sm-6"l><"col-sm-6"B>>' + 'frtip',
                                 buttons: ['copy', 'excel', 'pdf', 'csv', 'colvis'],
                 order: [
                     [0, 'desc']
-                ],
-                columns: [
-                    {data: 'id', name: 'id'},
-                    {data: 'event', name: 'event'},
-                    {data: 'title', name: 'title'},
-                    {data: 'message', name: 'message'},
-                    {data: 'notify_date', name: 'notify_date'}
                 ]
             });
 
+            table.buttons().container().appendTo('.dataTables_wrapper .col-sm-6:eq(1)');
         });
     </script>
 @endsection

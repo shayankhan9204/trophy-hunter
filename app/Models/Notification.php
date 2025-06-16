@@ -14,7 +14,6 @@ class Notification extends Model
         'is_read',
     ];
 
-
     public function event()
     {
         return $this->belongsTo(Event::class);

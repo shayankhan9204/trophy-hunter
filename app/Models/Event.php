@@ -13,17 +13,18 @@ class Event extends Model implements HasMedia
 
     protected $fillable = [
         'name',
-        'date',
-        'start_time',
-        'end_time',
+//        'date',
+//        'start_time',
+//        'end_time',
         'location',
+        'fish_bag_size',
+        'is_tagged',
     ];
 
     public function getSponsorImages(): array
     {
         return $this->getMedia('sponsors')->map(fn($media) => $media->getUrl())->toArray();
     }
-
     public function contacts()
     {
         return $this->hasMany(EventContact::class);
@@ -33,15 +34,28 @@ class Event extends Model implements HasMedia
     {
         return $this->hasMany(Notification::class);
     }
-
     public function rules()
     {
         return $this->hasMany(Rule::class);
     }
-
+    public function dates()
+    {
+        return $this->hasMany(EventDate::class);
+    }
+//    public function teams()
+//    {
+//        return $this->belongsToMany(Team::class, 'event_teams');
+//    }
     public function teams()
     {
-        return $this->belongsToMany(Team::class, 'event_teams');
+        return $this->belongsToMany(Team::class, 'event_team_user')
+            ->withPivot('user_id', 'angular_uid')
+            ->withTimestamps();
+    }
+
+    public function species()
+    {
+        return $this->belongsToMany(Specie::class, 'event_species');
     }
 
 }

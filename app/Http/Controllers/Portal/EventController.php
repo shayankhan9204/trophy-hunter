@@ -2,44 +2,65 @@
 
 namespace App\Http\Controllers\Portal;
 
+use App\Exports\EventCatchExport;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\EventContact;
+use App\Models\EventDate;
 use App\Models\Rule;
+use App\Models\Specie;
 use App\Models\Team;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
+use Illuminate\Support\Facades\Log;
 
 class EventController extends Controller
 {
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $events = Event::orderByDesc('id')->get();
+            $events = Event::with('dates')->orderByDesc('id')->get();
 
             return DataTables::of($events)
                 ->addColumn('date', function ($row) {
-                    return $row->date ? Carbon::parse($row->date)->format('d F Y') : '';
+                    return $row->dates->pluck('date')->map(function ($date) {
+                        return Carbon::parse($date)->format('d F Y');
+                    })->implode(', ');
+                })
+                ->addColumn('start_time', function ($row) {
+                    return $row->dates->pluck('start_time')->implode(', ');
+                })
+                ->addColumn('end_time', function ($row) {
+                    return $row->dates->pluck('end_time')->implode(', ');
                 })
                 ->addColumn('action', function ($row) {
                     $editUrl = route('event.edit', ['id' => $row->id]);
                     $deleteUrl = route('event.delete', ['id' => $row->id]);
+                    $exportUrl = route('event.export.catch', ['id' => $row->id]); // <-- Export URL
+
                     $actions = '';
                     $actions .= '<a href="' . $editUrl . '" class="mr-2" data-toggle="tooltip" title="Edit Event">
                         <i class="fas fa-pencil-alt"></i>
                     </a>';
+
                     $actions .= '<form action="' . $deleteUrl . '" method="POST" style="display: inline;" onsubmit="return confirm(\'Are you sure you want to delete this Event?\');">
                         ' . csrf_field() . method_field('DELETE') . '
                         <button type="submit" class="btn btn-link text-danger p-0" data-toggle="tooltip" title="Delete Event">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </form>';
+
+                    $actions .= '<a href="' . $exportUrl . '" class="ml-2" data-toggle="tooltip" title="Export Catch as Excel">
+                        <i class="fas fa-file-excel text-success"></i>
+                    </a>';
                     return $actions;
-                })->rawColumns(['action'])
+                })
+                ->rawColumns(['action'])
                 ->make(true);
         }
         return view('portal.events.index');
@@ -47,51 +68,72 @@ class EventController extends Controller
 
     public function create()
     {
-        $teams = Team::get();
-        return view('portal.events.create', compact('teams'));
+//        $teams = Team::get();
+        $species = Specie::get();
+        return view('portal.events.create', compact( 'species'));
     }
 
     public function store(Request $request)
     {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'date' => 'required|array',
+            'location' => 'required|string|max:255',
+            'fish_bag_size' => 'required',
+            'start_time' => 'required|array',
+            'end_time' => 'required|array',
+//            'teams' => 'required|array',
+//            'teams.*' => 'exists:teams,id',
+            'species' => 'required|array',
+            'species.*' => 'exists:species,id',
+
+            'contact_name' => 'nullable|array',
+            'contact_name.*' => 'nullable|string|max:255',
+            'contact_email' => 'nullable|array',
+            'contact_email.*' => 'nullable|email',
+            'contact_phone' => 'nullable|array',
+            'contact_phone.*' => 'nullable|string',
+
+            'event_title' => 'nullable|array',
+            'event_title.*' => 'nullable|string|max:255',
+            'description' => 'nullable|array',
+            'description.*' => 'nullable|string',
+
+//            'sponsors' => 'required|array',
+//            'sponsors.*' => 'file|mimes:jpg,jpeg,png,gif,webp',
+        ]);
+
         try {
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'date' => 'required|date',
-                'location' => 'required|string|max:255',
-                'start_time' => 'required',
-                'end_time' => 'required',
-                'teams' => 'nullable|array',
-                'teams.*' => 'exists:teams,id',
-
-                'contact_name' => 'nullable|array',
-                'contact_name.*' => 'nullable|string|max:255',
-                'contact_email' => 'nullable|array',
-                'contact_email.*' => 'nullable|email',
-                'contact_phone' => 'nullable|array',
-                'contact_phone.*' => 'nullable|string',
-
-                'event_title' => 'nullable|array',
-                'event_title.*' => 'nullable|string|max:255',
-                'description' => 'nullable|array',
-                'description.*' => 'nullable|string',
-
-                'sponsors' => 'nullable|array',
-                'sponsors.*' => 'file|mimes:jpg,jpeg,png,gif,webp',
-            ]);
-
             DB::beginTransaction();
 
             $event = Event::create([
                 'name' => $request->name,
-                'date' => $request->date,
                 'location' => $request->location,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time,
+                'fish_bag_size' => $request->fish_bag_size,
+                'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
             ]);
 
-            if ($request->has('teams')) {
-                $event->teams()->sync($request->teams);
+//            if ($request->has('teams')) {
+//                $event->teams()->sync($request->teams);
+//
+//            }
 
+            if ($request->has('species')) {
+                $event->species()->sync($request->species);
+
+            }
+
+            if ($request->date) {
+                foreach ($request->date as $index => $date) {
+                    if ($date || $request->start_time[$index] || $request->end_time[$index]) {
+                        EventDate::create([
+                            'event_id' => $event->id,
+                            'date' => $date,
+                            'start_time' => $request->start_time[$index],
+                            'end_time' => $request->end_time[$index],
+                        ]);
+                    }
+                }
             }
 
             if ($request->contact_name) {
@@ -138,76 +180,118 @@ class EventController extends Controller
 
     public function edit($id)
     {
-        $teams = Team::get();
+//        $teams = Team::get();
         $event = Event::where('id', $id)
-            ->with('contacts', 'notifications', 'rules', 'teams')->first();
+            ->with('contacts', 'notifications', 'rules', 'teams', 'dates')->first();
+        $species = Specie::get();
 
-        return view('portal.events.edit', compact('teams', 'event'));
+        return view('portal.events.edit', compact( 'event', 'species'));
     }
 
     public function update(Request $request)
     {
         $request->validate([
             'name' => 'required|string',
-            'date' => 'required|date',
+            'date' => 'required|array',
             'location' => 'required|string',
-            'teams' => 'nullable|array',
-            'start_time' => 'required',
-            'end_time' => 'required',
+            'fish_bag_size' => 'required',
+//            'teams' => 'required|array',
+            'species' => 'required|array',
+            'start_time' => 'required|array',
+            'end_time' => 'required|array',
         ]);
 
-        $event = Event::findOrFail($request->id);
+        DB::beginTransaction();
 
-        $event->update([
-            'name' => $request->name,
-            'date' => $request->date,
-            'location' => $request->location,
-            'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
-        ]);
+        try {
 
-        $event->teams()->sync($request->teams ?? []);
+            $event = Event::findOrFail($request->id);
 
-        if ($request->hasFile('sponsors')) {
-            $event->clearMediaCollection('sponsors');
-            foreach ($request->file('sponsors') as $file) {
-                $event->addMedia($file)->toMediaCollection('sponsors');
+            $event->update([
+                'name' => $request->name,
+                'date' => $request->date,
+                'location' => $request->location,
+                'fish_bag_size' => $request->fish_bag_size,
+                'start_time' => $request->start_time,
+                'end_time' => $request->end_time,
+                'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
+            ]);
+
+//            $event->teams()->sync($request->teams ?? []);
+            $event->species()->sync($request->species ?? []);
+
+            if ($request->filled('removed_media_ids')) {
+                $ids = explode(',', $request->removed_media_ids);
+
+                foreach ($ids as $id) {
+                    $media = $event->media()->where('id', $id)->first();
+                    if ($media) {
+                        $media->delete();
+                    }
+                }
             }
+
+            if ($request->hasFile('sponsors')) {
+                foreach ($request->file('sponsors') as $file) {
+                    $event->addMedia($file)->toMediaCollection('sponsors');
+                }
+            }
+
+            $event->dates()->delete();
+
+            foreach ($request->date ?? [] as $index => $date) {
+                if ($date) {
+                    EventDate::create([
+                        'event_id' => $event->id,
+                        'date' => $date,
+                        'start_time' => $request->start_time[$index],
+                        'end_time' => $request->end_time[$index],
+                    ]);
+                }
+            }
+
+            $event->contacts()->delete();
+
+            foreach ($request->contact_name ?? [] as $index => $name) {
+                if ($name) {
+                    EventContact::create([
+                        'event_id' => $event->id,
+                        'name' => $name,
+                        'email' => $request->contact_email[$index] ?? null,
+                        'phone' => $request->contact_phone[$index] ?? null,
+                    ]);
+                }
+            }
+
+            $event->rules()->delete();
+
+            foreach ($request->title ?? [] as $index => $title) {
+                if ($title || !empty($request->description[$index])) {
+                    Rule::create([
+                        'event_id' => $event->id,
+                        'title' => $title,
+                        'description' => json_encode($request->description[$index]),
+                    ]);
+                }
+            }
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Event updated successfully!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Event update failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'An error occurred while updating the event.');
+
         }
 
-        $event->contacts()->delete();
-
-        foreach ($request->contact_name ?? [] as $index => $name) {
-            if ($name) {
-                EventContact::create([
-                    'event_id' => $event->id,
-                    'name' => $name,
-                    'email' => $request->contact_email[$index] ?? null,
-                    'phone' => $request->contact_phone[$index] ?? null,
-                ]);
-            }
-        }
-
-        $event->rules()->delete();
-
-        foreach ($request->title ?? [] as $index => $title) {
-            if ($title || !empty($request->description[$index])) {
-                Rule::create([
-                    'event_id' => $event->id,
-                    'title' => $title,
-                    'description' => json_encode($request->description[$index]),
-                ]);
-            }
-        }
-
-        return redirect()->back()->with('success', 'Event updated successfully!');
     }
 
     public function destroy($id)
     {
         $event = Event::findOrFail($id);
 
-        $event->teams()->detach();
+//        $event->teams()->detach();
         $event->contacts()->delete();
         $event->rules()->delete();
         $event->clearMediaCollection('sponsors');
@@ -216,5 +300,36 @@ class EventController extends Controller
 
         return redirect()->route('event.index')->with('success', 'Event deleted successfully!');
     }
+
+    public function exportCatch($id)
+    {
+        $event = Event::find($id);
+        return Excel::download(new EventCatchExport($id), 'event-catch-' . $event->name . '.xlsx');
+    }
+
+    public function getSpeciesByEvent(Request $request)
+    {
+        $eventId = $request->event_id;
+
+        if (!$eventId) {
+            return response()->json(['species' => []]);
+        }
+
+        $event = Event::with('species')->find($eventId);
+
+        if (!$event) {
+            return response()->json(['species' => []]);
+        }
+
+        return response()->json([
+            'species' => $event->species->map(function ($specie) {
+                return [
+                    'id' => $specie->id,
+                    'name' => $specie->name,
+                ];
+            }),
+        ]);
+    }
+
 
 }

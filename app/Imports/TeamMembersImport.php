@@ -9,45 +9,47 @@ use Maatwebsite\Excel\Concerns\ToModel;
 
 class TeamMembersImport implements ToModel
 {
-    /**
-     * @param array $row
-     *
-     * @return \Illuminate\Database\Eloquent\Model|null
-     */
+    protected $eventId;
+
+    public function __construct($eventId)
+    {
+        $this->eventId = $eventId;
+    }
+
     public function model(array $row)
     {
         if (strtolower(trim($row[0])) === 'team name') return null;
-
-        if (count($row) < 5 || empty($row[3]) || empty($row[4])) return null;
+        if (count($row) < 6 || empty($row[4]) || empty($row[5])) return null;
 
         $teamName = trim($row[0]);
-        $name = trim($row[1]);
-        $category = trim($row[2]);
-        $email = strtolower(trim($row[3]));
-        $phone = trim($row[4]);
+        $angularNo = trim($row[1]);
+        $name = trim($row[2]);
+        $category = trim($row[3]);
+        $email = strtolower(trim($row[4]));
+        $phone = trim($row[5]);
 
         $team = Team::firstOrCreate(['name' => $teamName]);
 
-        $user = User::where('email', $email)
-            ->where('phone', $phone)
-            ->first();
+        $user = User::firstOrNew(['email' => $email]);
 
-        if (!$user) {
-            $user = User::create([
-                'name' => $name,
-                'email' => $email,
-                'phone' => $phone,
-                'password' => Hash::make('12345678'),
-                'team_id' => $team->id,
-                'category' => $category,
-            ]);
+        $user->name = $name ?? null;
+        $user->category = $category;
+        $user->phone = $phone;
+        if (!$user->exists) {
+            $user->password = Hash::make($phone);
+        }
+        $user->save();
 
-            $user->refresh();
-        } else {
-            $user->update([
-                'name' => $name,
-                'team_id' => $team->id,
-                'category' => $category,
+        $alreadyInEvent = \DB::table('event_team_user')
+            ->where('event_id', $this->eventId)
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (!$alreadyInEvent) {
+            $user->team()->attach($team->id, [
+                'event_id' => $this->eventId,
+                'angular_uid' => $angularNo ?: 'AGL-' . str_pad($user->id, 3, '0', STR_PAD_LEFT),
             ]);
         }
 

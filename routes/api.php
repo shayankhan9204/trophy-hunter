@@ -7,17 +7,18 @@ use App\Http\Controllers\API\ProfileController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
-
 Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::group(['prefix' => 'events'], function () {
         Route::get('/', [EventController::class, 'myEvents']);
-        Route::get('/detail/{id}', [EventController::class, 'eventDetail']);
+        Route::get('/detail/{id?}', [EventController::class, 'eventDetail']);
+        Route::get('/species/{id?}', [EventController::class, 'species']);
 
+        Route::post('/submit/bag/{event_id?}', [EventController::class, 'submitBag']);
     });
 
     Route::group(['prefix' => 'user'], function () {
         Route::post('/profile/update', [ProfileController::class, 'update']);
-        Route::get('/team', [ProfileController::class, 'myTeam']);
+        Route::get('/team/{id?}', [ProfileController::class, 'myTeam']);
 
     });
 

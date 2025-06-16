@@ -5,18 +5,28 @@ namespace App\Http\Controllers\API;
 use App\Helpers\APIResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\EventCatch;
 use App\Models\Notification;
+use App\Models\Specie;
+use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class EventController extends Controller
 {
     public function myEvents()
     {
-        $events = Auth::user()->team
-            ? Auth::user()->team->events()
-                ->orderByDesc('id')
-                ->get()
-            : collect();
+        $user = Auth::user();
+
+        $eventIds = \DB::table('event_team_user')
+            ->where('user_id', $user->id)
+            ->distinct()
+            ->pluck('event_id');
+
+        $events = Event::with('dates')
+            ->whereIn('id', $eventIds)
+            ->orderByDesc('id')
+            ->get();
 
         return APIResponse::success('Events Fetched Successfully', [
             'events' => $events,
@@ -25,28 +35,117 @@ class EventController extends Controller
 
     public function eventDetail($id)
     {
-        $event = Event::where('id' , $id)
-                ->with(['contacts', 'rules', 'media' => function ($query) {
-                    $query->where('collection_name', 'sponsors');
-                }])
-                ->orderByDesc('id')
-                ->get()
-                ->map(function ($event) {
-                    $event->sponsor_images = $event->getSponsorImages();
-                    return $event;
-                });
+        if (empty($id)) {
+            return APIResponse::error('Event ID is required');
+        }
+
+        $event = Event::where('id', $id)->with(['contacts', 'rules' , 'dates','species'])->first();
+
+        $userTeamIds = Auth::user()->team->pluck('id')->toArray();
+        $team = $event->teams()
+            ->whereIn('team_id', $userTeamIds)
+            ->wherePivot('user_id', Auth::id())
+            ->first();
+
+        if (!$team) {
+            return APIResponse::error('You are not registered in this event');
+        }
+
+        $event->sponsor_images = $event->getSponsorImages();
+        $event->event_catches = EventCatch::with(['angler', 'specie'])
+            ->where('event_id', $id)
+            ->where('team_id', $team->id)
+            ->get();
 
         return APIResponse::success('Event Detail Fetched Successfully', [
             'event' => $event,
         ]);
     }
+
     public function notifications()
     {
-        $notification = Notification::where('user_id' , Auth::id())->get();
+        $notification = Notification::where('user_id', Auth::id())->get();
         return APIResponse::success('Notification Fetched Successfully', [
             'notification' => $notification,
         ]);
+    }
 
+    public function species($id = null)
+    {
+        if (empty($id)) {
+            return APIResponse::error('Event ID is required');
+        }
+
+        $event = Event::find($id);
+        if (!$event) {
+            return APIResponse::error('Event not found');
+        }
+
+        $species = $event->species()->get();
+
+        return APIResponse::success('Species fetched successfully', [
+            'species' => $species,
+        ]);
+    }
+
+    public function submitBag(Request $request, $event_id = null)
+    {
+        try {
+            $request->validate([
+                'fish_bag' => 'required|array|min:1',
+            ]);
+
+            $event = Event::findOrFail($event_id);
+
+            $rules = [
+                'fish_bag.*.angler_id' => 'required',
+                'fish_bag.*.points' => 'required',
+                'fish_bag.*.specie_id' => 'required|exists:species,id',
+                'fish_bag.*.fork_length' => 'required|numeric',
+//                'fish_bag.*.specie_image' => 'array|min:1',
+            ];
+
+            if ($event->tagged == 1) {
+                $rules['fish_bag.*.tag_type'] = 'required|string';
+                $rules['fish_bag.*.tag_no'] = 'required|string';
+                $rules['fish_bag.*.line_class'] = 'required|string';
+
+            } else {
+                $rules['fish_bag.*.tag_type'] = 'nullable|string';
+                $rules['fish_bag.*.tag_no'] = 'nullable|string';
+                $rules['fish_bag.*.line_class'] = 'nullable|string';
+            }
+
+            $validated = $request->validate($rules);
+
+            foreach ($request->fish_bag as $item) {
+                $angler = User::find($item['angler_id']);
+
+                $eventCatch = EventCatch::create([
+                    'event_id'    => $event->id,
+                    'team_id'     => $item['team_id'] ?? null,
+                    'angler_id'   => $item['angler_id'],
+                    'specie_id'   => $item['specie_id'],
+                    'fork_length' => $item['fork_length'],
+                    'tag_type'    => $item['tag_type'] ?? null,
+                    'tag_no'      => $item['tag_no'] ?? null,
+                    'line_class'  => $item['line_class'] ?? null,
+                    'points'  => $item['points'] ?? null,
+                ]);
+
+                if (isset($item['specie_image']) && is_array($item['specie_image'])) {
+                    foreach ($item['specie_image'] as $image) {
+                        $eventCatch->addMedia($image)->toMediaCollection('event_fish_images');
+                    }
+                }
+
+            }
+
+            return APIResponse::success('Bag Submitted Successfully');
+
+        } catch (\Exception $exception) {
+            return APIResponse::error($exception->getMessage());
+        }
     }
 
 }
