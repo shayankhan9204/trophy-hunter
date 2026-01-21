@@ -24,7 +24,9 @@
                     <div class="col-sm-6">
                         <div class="page-title-box">
                             <div class="float-right">
-                                <a href="{{ route('teams.export') }}" class="btn btn-gradient-primary">
+                                <a  href="javascript:void(0)"
+                                onclick="exportTeams()"
+                                    class="btn btn-gradient-primary">
                                     Export Teams
                                 </a>
 
@@ -176,6 +178,19 @@
 @section('script')
 
     <script>
+        function exportTeams () {
+            const eventId = document.getElementById('event_id').value;
+
+            if (!eventId) {
+                alert('Please select an event first.');
+                return;
+            }
+
+            const url = "{{ route('teams.export') }}" + '?event_id=' + encodeURIComponent(eventId);
+
+            window.location.href = url;
+        }
+
         function singleConfirmDelete(teamId) {
             const eventSelect = document.querySelector('[name="event_id"]');
             const selectedEventId = eventSelect.value;

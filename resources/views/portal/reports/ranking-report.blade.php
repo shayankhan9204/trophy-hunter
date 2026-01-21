@@ -54,13 +54,13 @@
                                         <tr>
                                             <th>Rank</th>
                                             <th>Team Number</th>
+                                            <th>Team Name</th>
                                             <th>Angler Number</th>
                                             <th>Angler Name</th>
-                                            <th>Total Fish</th>
-                                            <th>Total Points</th>
-                                            <th>Largest Fish Size</th>
-                                            <th>Largest Fish Points</th>
-                                            <th>Avg Fish Size</th>
+                                            <th>Specie</th>
+                                            <th>Fork Length</th>
+                                            <th>Points</th>
+                                            <th>Fish Photo</th>
                                         </tr>
                                         </thead>
                                     </table>
@@ -99,13 +99,13 @@
                     columns: [
                         { data: 'rank', name: 'rank' },
                         { data: 'team_number', name: 'team_number' },
+                        { data: 'team_name', name: 'team_name' },
                         { data: 'angler_number', name: 'angler_number' },
                         { data: 'angler_name', name: 'angler_name' },
-                        { data: 'total_fish', name: 'total_fish' },
-                        { data: 'total_points', name: 'total_points' },
-                        { data: 'largest_fish_size', name: 'largest_fish_size' },
-                        { data: 'largest_fish_points', name: 'largest_fish_points' },
-                        { data: 'avg_fish_size', name: 'avg_fish_size' },
+                        { data: 'specie', name: 'specie' },
+                        { data: 'fork_length', name: 'fork_length' },
+                        { data: 'points', name: 'points' },
+                        { data: 'fish_photo', name: 'fish_photo' },
                         { data: 'is_summary_row', visible: false }
                     ],
                     rowCallback: function (row, data) {
@@ -121,6 +121,10 @@
                     language: {
                         emptyTable: "Sorry! No catch data found for this event"
                     }
+                });
+                table.on('draw.dt', function () {
+                    lightbox.destroy();
+                    lightbox = GLightbox({ selector: '.glightbox' });
                 });
             });
         });

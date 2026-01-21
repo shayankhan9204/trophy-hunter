@@ -33,6 +33,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/event/update', [EventController::class, 'update'])->name('event.update');
     Route::delete('/event/delete/{id}', [EventController::class, 'destroy'])->name('event.delete');
     Route::get('/event/{id}/export-catch', [EventController::class, 'exportCatch'])->name('event.export.catch');
+    Route::post('/event-catch/delete', [EventController::class, 'deleteSelected'])->name('event.catch.delete');
+
+    Route::get('/event/edit/catch/{id}', [EventController::class, 'editCatch'])->name('event.edit.catch');
+    Route::post('/event/catch/update', [EventController::class, 'updateCatchPoints'])->name('event.catch.update');
 
     Route::get('/specie', [SpecieController::class, 'index'])->name('specie.index');
     Route::get('/specie/create', [SpecieController::class, 'create'])->name('specie.create');
@@ -47,6 +51,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/team-ranking-report', [ReportsController::class, 'teamRankingReport'])->name('team.ranking.report');
     Route::get('/individual-fish-report', [ReportsController::class, 'individualFishReport'])->name('individual.fish.report');
+    Route::get('/extra-photo-report', [ReportsController::class, 'extraPhotoReport'])->name('extra.photo.report');
+    Route::get('/event-login-report', [ReportsController::class, 'eventLoginReport'])->name('event.login.report');
 
     Route::get('/get-species-by-event', [EventController::class, 'getSpeciesByEvent'])->name('get.species.by.event');
 

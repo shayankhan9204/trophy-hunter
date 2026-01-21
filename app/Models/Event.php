@@ -38,6 +38,11 @@ class Event extends Model implements HasMedia
     {
         return $this->hasMany(Rule::class);
     }
+
+    public function catches()
+    {
+        return $this->hasMany(EventCatch::class);
+    }
     public function dates()
     {
         return $this->hasMany(EventDate::class);

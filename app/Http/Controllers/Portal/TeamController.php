@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Portal;
 use App\Http\Controllers\Controller;
 use App\Imports\TeamMembersImport;
 use App\Models\Event;
+use App\Models\EventCatch;
 use App\Models\EventTeamUser;
 use App\Models\Team;
 use App\Models\User;
@@ -203,9 +204,9 @@ class TeamController extends Controller
 
         $callback = function () {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Team Name' , 'Angler Number', 'Angler Name', 'Category', 'Email', 'Phone']);
-            fputcsv($handle, ['Shark Masters' ,'AGL-001' ,'John Doe', 'adult', 'john@example.com', '555-1234']);
-            fputcsv($handle, ['Ocean Kings' ,'AGL-002' ,'Jane Roe', 'junior', 'jane@example.com', '555-5678']);
+            fputcsv($handle, ['Team Name', 'Angler Number', 'Angler Name', 'Category', 'Email', 'Phone']);
+            fputcsv($handle, ['Shark Masters', 'AGL-001', 'John Doe', 'adult', 'john@example.com', '555-1234']);
+            fputcsv($handle, ['Ocean Kings', 'AGL-002', 'Jane Roe', 'junior', 'jane@example.com', '555-5678']);
             fclose($handle);
         };
 
@@ -217,6 +218,8 @@ class TeamController extends Controller
         $request->validate([
             'event_id' => 'required|exists:events,id',
         ]);
+
+        EventCatch::where('event_id', $request->event_id)->delete();
 
         EventTeamUser::where('event_id', $request->event_id)->delete();
 
@@ -231,18 +234,32 @@ class TeamController extends Controller
             'team_id' => 'required|exists:teams,id',
             'event_id' => 'required|exists:events,id',
         ]);
+        try {
+            DB::beginTransaction();
 
-        EventTeamUser::where('team_id', $request->team_id)
-            ->where('event_id', $request->event_id)
-            ->delete();
+            EventCatch::where('team_id', $request->team_id)->delete();
 
-        return redirect()->route('team.index', ['event_id' => $request->event_id])
-            ->with('success', 'Team removed from the event successfully.');
+            EventTeamUser::where('team_id', $request->team_id)
+                ->where('event_id', $request->event_id)
+                ->delete();
+
+            DB::commit();
+
+            return redirect()->route('team.index', ['event_id' => $request->event_id])
+                ->with('success', 'Team removed from the event successfully.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Something went wrong!');
+        }
     }
 
-    public function export()
+    public function export(Request $request)
     {
-        $teams = Team::whereHas('events')->with('anglers')->get();
+        $eventId = $request->query('event_id');
+        $teams = Team::whereHas('events', function ($q) use ($eventId) {
+            $q->where('events.id', $eventId);
+        })->with('anglers')->get();
 
         $headers = [
             "Content-type" => "text/csv",

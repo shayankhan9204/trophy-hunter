@@ -44,9 +44,9 @@
 
                                         <div class="col-md-6">
                                             <div class="form-group">
-                                                <label>Fish Bag Size</label>
-                                                <input class="form-control" required type="number" name="fish_bag_size"
-                                                       value="{{ old('fish_bag_size') ?? 10 }}">
+                                                <label>Fish Bag Size</label> ( <strong>NOTE:</strong> Leave empty if you dont want to set fish bag size limit  )
+                                                <input class="form-control" type="number" name="fish_bag_size"
+                                                       value="{{ old('fish_bag_size') ?? '' }}">
                                             </div>
                                             @error('fish_bag_size')
                                             <span class="text-danger">{{ $message }}</span>

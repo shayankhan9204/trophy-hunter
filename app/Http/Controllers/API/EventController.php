@@ -5,12 +5,14 @@ namespace App\Http\Controllers\API;
 use App\Helpers\APIResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\EventAttendance;
 use App\Models\EventCatch;
 use App\Models\Notification;
 use App\Models\Specie;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class EventController extends Controller
 {
@@ -39,7 +41,7 @@ class EventController extends Controller
             return APIResponse::error('Event ID is required');
         }
 
-        $event = Event::where('id', $id)->with(['contacts', 'rules' , 'dates','species'])->first();
+        $event = Event::where('id', $id)->with(['contacts', 'rules', 'dates', 'species'])->first();
 
         $userTeamIds = Auth::user()->team->pluck('id')->toArray();
         $team = $event->teams()
@@ -52,23 +54,42 @@ class EventController extends Controller
         }
 
         $event->sponsor_images = $event->getSponsorImages();
-        $event->event_catches = EventCatch::with(['angler', 'specie'])
+        $eventCatches = EventCatch::with(['angler', 'specie'])
             ->where('event_id', $id)
             ->where('team_id', $team->id)
             ->get();
+
+        $anglerAngularUids = DB::table('event_team_user')
+            ->where('event_id', $id)
+            ->where('team_id', $team->id)
+            ->pluck('angular_uid', 'user_id');
+
+        foreach ($eventCatches as $catch) {
+            $catch->angler->angular_uid = $anglerAngularUids[$catch->angler_id] ?? null;
+        }
+
+        $event->event_catches = $eventCatches;
 
         return APIResponse::success('Event Detail Fetched Successfully', [
             'event' => $event,
         ]);
     }
 
-    public function notifications()
+    public function notifications($id = null)
     {
-        $notification = Notification::where('user_id', Auth::id())->get();
+        $query = Notification::where('user_id', Auth::id());
+
+        if ($id) {
+            $query->where('event_id', $id);
+        }
+
+        $notifications = $query->orderByDesc('created_at')->get();
+
         return APIResponse::success('Notification Fetched Successfully', [
-            'notification' => $notification,
+            'notification' => $notifications,
         ]);
     }
+
 
     public function species($id = null)
     {
@@ -122,15 +143,16 @@ class EventController extends Controller
                 $angler = User::find($item['angler_id']);
 
                 $eventCatch = EventCatch::create([
-                    'event_id'    => $event->id,
-                    'team_id'     => $item['team_id'] ?? null,
-                    'angler_id'   => $item['angler_id'],
-                    'specie_id'   => $item['specie_id'],
+                    'event_id' => $event->id,
+                    'team_id' => $item['team_id'] ?? null,
+                    'angler_id' => $item['angler_id'],
+                    'specie_id' => $item['specie_id'],
                     'fork_length' => $item['fork_length'],
-                    'tag_type'    => $item['tag_type'] ?? null,
-                    'tag_no'      => $item['tag_no'] ?? null,
-                    'line_class'  => $item['line_class'] ?? null,
-                    'points'  => $item['points'] ?? null,
+                    'tag_type' => $item['tag_type'] ?? null,
+                    'tag_no' => $item['tag_no'] ?? null,
+                    'line_class' => $item['line_class'] ?? null,
+                    'points' => $item['points'] ?? null,
+                    'catch_timestamp' => $item['created_at'] ?? null
                 ]);
 
                 if (isset($item['specie_image']) && is_array($item['specie_image'])) {
@@ -142,6 +164,51 @@ class EventController extends Controller
             }
 
             return APIResponse::success('Bag Submitted Successfully');
+
+        } catch (\Exception $exception) {
+            return APIResponse::error($exception->getMessage());
+        }
+    }
+
+    public function submitAttendance(Request $request, $event_id = null)
+    {
+        try {
+            $request->validate([
+                'attendance' => 'required|array|min:1',
+            ]);
+
+            $event = Event::findOrFail($event_id);
+
+            foreach ($request->attendance as $item) {
+                $existingAttendance = EventAttendance::where('user_id', $item['user_id'])
+                    ->where('team_id', $item['team_id'])
+                    ->where('event_id', $event->id)
+                    ->where('date', $item['date'])
+                    ->whereNull('time_out')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($existingAttendance && !empty($item['timeOut'])) {
+                    $existingAttendance->update([
+                        'time_out' => $item['timeOut'],
+                        'time_out_latitude' => $item['latitude'] ?? $existingAttendance->time_in_latitude,
+                        'time_out_longitude' => $item['longitude'] ?? $existingAttendance->time_in_longitude,
+                    ]);
+                } else {
+                    EventAttendance::create([
+                        'user_id' => $item['user_id'],
+                        'team_id' => $item['team_id'],
+                        'event_id' => $event->id,
+                        'date' => $item['date'],
+                        'time_in' => $item['timeIn'] ?? null,
+                        'time_out' => $item['timeOut'] ?? null,
+                        'time_in_latitude' => $item['latitude'],
+                        'time_in_longitude' => $item['longitude'],
+                    ]);
+                }
+            }
+
+            return APIResponse::success('Attendance Mark Successfully');
 
         } catch (\Exception $exception) {
             return APIResponse::error($exception->getMessage());

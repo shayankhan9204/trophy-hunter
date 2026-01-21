@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Portal;
 use App\Exports\EventCatchExport;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\EventCatch;
 use App\Models\EventContact;
 use App\Models\EventDate;
 use App\Models\Rule;
@@ -40,12 +41,17 @@ class EventController extends Controller
                 })
                 ->addColumn('action', function ($row) {
                     $editUrl = route('event.edit', ['id' => $row->id]);
+                    $editCatchUrl = route('event.edit.catch', ['id' => $row->id]);
                     $deleteUrl = route('event.delete', ['id' => $row->id]);
                     $exportUrl = route('event.export.catch', ['id' => $row->id]); // <-- Export URL
 
                     $actions = '';
                     $actions .= '<a href="' . $editUrl . '" class="mr-2" data-toggle="tooltip" title="Edit Event">
                         <i class="fas fa-pencil-alt"></i>
+                    </a>';
+
+                    $actions .= '<a href="' . $editCatchUrl . '" class="mr-2" data-toggle="tooltip" title="Edit Catch">
+                        <i class="fas fa-list"></i>
                     </a>';
 
                     $actions .= '<form action="' . $deleteUrl . '" method="POST" style="display: inline;" onsubmit="return confirm(\'Are you sure you want to delete this Event?\');">
@@ -79,7 +85,7 @@ class EventController extends Controller
             'name' => 'required|string|max:255',
             'date' => 'required|array',
             'location' => 'required|string|max:255',
-            'fish_bag_size' => 'required',
+//            'fish_bag_size' => 'required',
             'start_time' => 'required|array',
             'end_time' => 'required|array',
 //            'teams' => 'required|array',
@@ -194,7 +200,7 @@ class EventController extends Controller
             'name' => 'required|string',
             'date' => 'required|array',
             'location' => 'required|string',
-            'fish_bag_size' => 'required',
+//            'fish_bag_size' => 'required',
 //            'teams' => 'required|array',
             'species' => 'required|array',
             'start_time' => 'required|array',
@@ -211,7 +217,7 @@ class EventController extends Controller
                 'name' => $request->name,
                 'date' => $request->date,
                 'location' => $request->location,
-                'fish_bag_size' => $request->fish_bag_size,
+                'fish_bag_size' => $request->fish_bag_size ?? $event->fish_bag_size,
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
@@ -329,6 +335,60 @@ class EventController extends Controller
                 ];
             }),
         ]);
+    }
+
+    public function editCatch($id)
+    {
+        $event = Event::where('id', $id)
+            ->with(['catches.specie' , 'catches.team', 'catches.angler' , 'species'])->first();
+
+        return view('portal.events.edit-catch', compact( 'event' ));
+    }
+
+
+    public function updateCatchPoints(Request $request)
+    {
+        $pointsData = $request->input('points', []);
+        $forkData   = $request->input('fork_length', []);
+
+        $catchIds = array_unique(array_merge(
+            array_keys($pointsData),
+            array_keys($forkData)
+        ));
+
+        foreach ($catchIds as $catchId) {
+            $catch = EventCatch::find($catchId);
+            if (!$catch) {
+                continue;
+            }
+
+            if (isset($pointsData[$catchId])) {
+                $catch->points = $pointsData[$catchId];
+            }
+
+            if (isset($forkData[$catchId])) {
+                $catch->fork_length = $forkData[$catchId];
+            }
+
+            $catch->save();
+        }
+
+        return redirect()
+            ->back()
+            ->with('success', 'Catch points and fork lengths updated successfully.');
+    }
+
+    public function deleteSelected(Request $request)
+    {
+        $ids = $request->catch_ids;
+
+        if (empty($ids)) {
+            return response()->json(['message' => 'No catches selected.'], 400);
+        }
+
+        EventCatch::whereIn('id', $ids)->delete();
+
+        return response()->json(['message' => 'Selected catches deleted successfully.']);
     }
 
 

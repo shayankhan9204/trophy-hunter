@@ -19,7 +19,8 @@ class EventCatch extends Model implements HasMedia
         'tag_type',
         'tag_no',
         'line_class',
-        'points'
+        'points',
+        'catch_timestamp'
     ];
 
     public function angler()

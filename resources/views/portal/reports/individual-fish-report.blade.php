@@ -97,7 +97,7 @@
                                                 </tr>
                                                 </thead>
                                                 <tbody>
-                                                @foreach($catches as $index => $catch)
+                                                @foreach($catches->sortByDesc('fork_length')->values() as $index => $catch)
                                                     <tr>
                                                         <td>{{ $index + 1 }}</td>
                                                         <td>{{ ucfirst($catch->angler->category ?? '-') }}</td>
@@ -107,7 +107,13 @@
                                                         <td>{{ $catch->fork_length }}</td>
                                                         <td>
                                                             @if($catch->getFirstMediaUrl('event_fish_images'))
-                                                                <img src="{{ $catch->getFirstMediaUrl('event_fish_images') }}" width="80">
+                                                                <a  href="{{ $catch->getFirstMediaUrl('event_fish_images') }}"
+                                                                    class="glightbox"
+                                                                    data-gallery="fish-{{ $specieId }}">     {{-- same gallery per species if you like --}}
+                                                                    <img src="{{ $catch->getFirstMediaUrl('event_fish_images') }}"
+                                                                         style="width:200px; height:130px;object-fit:contain;"
+                                                                         width="80" class="img-thumbnail" style="cursor:pointer;">
+                                                                </a>
                                                             @else
                                                                 No Photo
                                                             @endif
@@ -198,8 +204,5 @@
             }
         });
     </script>
-
-    </script>
-
 
 @endsection

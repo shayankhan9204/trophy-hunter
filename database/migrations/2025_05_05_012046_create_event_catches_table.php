@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('tag_no');
             $table->string('line_class');
             $table->string('points');
+            $table->string('catch_timestamp');
             $table->timestamps();
         });
     }

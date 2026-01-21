@@ -47,7 +47,7 @@
                                         <div class="col-md-6">
                                             <div class="form-group">
                                                 <label>Fish Bag Size</label>
-                                                <input class="form-control" required type="number" name="fish_bag_size"
+                                                <input class="form-control" type="number" name="fish_bag_size"
                                                        value="{{ $event->fish_bag_size ?? ('fish_bag_size')  }}">
                                             </div>
                                             @error('fish_bag_size')

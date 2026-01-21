@@ -98,13 +98,17 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
 
-        $teamsQuery = $user->team()->with(['anglers']);
+        $teamsQuery = $user->team();
 
-        if (isset($id)) {
+        if ($id) {
             $teamsQuery->wherePivot('event_id', $id);
         }
 
-        $teams = $teamsQuery->get();
+        $teams = $teamsQuery->with(['anglers' => function ($query) use ($id) {
+            if ($id) {
+                $query->wherePivot('event_id', $id);
+            }
+        }])->get();
 
         return APIResponse::success('Team Fetched Successfully', [
             'team' => $teams,

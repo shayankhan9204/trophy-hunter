@@ -14,6 +14,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
         Route::get('/species/{id?}', [EventController::class, 'species']);
 
         Route::post('/submit/bag/{event_id?}', [EventController::class, 'submitBag']);
+        Route::post('/submit/attendance/{event_id?}', [EventController::class, 'submitAttendance']);
     });
 
     Route::group(['prefix' => 'user'], function () {
@@ -22,6 +23,6 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
 
     });
 
-    Route::get('/notifications', [EventController::class, 'notifications']);
+    Route::get('/notifications/{id?}', [EventController::class, 'notifications']);
 
 });

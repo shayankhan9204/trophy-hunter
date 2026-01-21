@@ -59,10 +59,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
 
 <script>
+        const lightbox = GLightbox({ selector: '.glightbox' });
 
-    function initializeDataTable(tableSelector, ajaxUrl, columns) {
+function initializeDataTable(tableSelector, ajaxUrl, columns) {
         $.ajaxSetup({
             headers: {
                 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
