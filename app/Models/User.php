@@ -39,7 +39,7 @@ class User extends Authenticatable implements HasMedia
         'remember_token',
     ];
 
-    protected $appends = ['profile_picture'];
+    protected $appends = ['profile_picture', 'insurance_certificate','boat_photo'];
 
 //    protected static function booted()
 //    {
@@ -93,6 +93,18 @@ class User extends Authenticatable implements HasMedia
     public function getProfilePictureAttribute()
     {
         $url = $this->getFirstMediaUrl('profile_picture');
+
+        return $url ?: asset('images/avatar-placeholder.png');
+    }
+    public function getBoatPhotoAttribute()
+    {
+        $url = $this->getFirstMediaUrl('boat_photo');
+
+        return $url ?: asset('images/avatar-placeholder.png');
+    }
+    public function getInsuranceCertificateAttribute()
+    {
+        $url = $this->getFirstMediaUrl('insurance_certificate');
 
         return $url ?: asset('images/avatar-placeholder.png');
     }

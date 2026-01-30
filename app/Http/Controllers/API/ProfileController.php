@@ -15,7 +15,7 @@ class ProfileController extends Controller
     public function update(Request $request)
     {
         $user = Auth::user();
-
+        
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|email|max:255|unique:users,email,' . $user->id,
@@ -34,6 +34,8 @@ class ProfileController extends Controller
             'profile.emergency_contact_number' => 'nullable|string|max:255',
 
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'boat_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:4096',
+            'insurance_certificate' => 'nullable|mimes:jpeg,png,jpg,pdf|max:4096',
         ]);
 
         DB::beginTransaction();
@@ -58,6 +60,16 @@ class ProfileController extends Controller
             if ($request->hasFile('profile_picture')) {
                 $user->clearMediaCollection('profile_picture');
                 $user->addMedia($request->file('profile_picture'))->toMediaCollection('profile_picture');
+            }
+            if ($request->hasFile('boat_photo')) {
+                $user->clearMediaCollection('boat_photo');
+                $user->addMedia($request->file('boat_photo'))
+                    ->toMediaCollection('boat_photo');
+            }
+            if ($request->hasFile('insurance_certificate')) {
+                $user->clearMediaCollection('insurance_certificate');
+                $user->addMedia($request->file('insurance_certificate'))
+                    ->toMediaCollection('insurance_certificate');
             }
 
             // Handle profile update
