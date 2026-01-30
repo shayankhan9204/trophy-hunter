@@ -43,9 +43,9 @@ class EventController extends Controller
 
         $event = Event::where('id', $id)->with(['contacts', 'rules', 'dates', 'species'])->first();
 
-        $userTeamIds = Auth::user()->team->pluck('id')->toArray();
+        // $userTeamIds = Auth::user()->team->pluck('id')->toArray();
         $team = $event->teams()
-            ->whereIn('team_id', $userTeamIds)
+            // ->whereIn('team_id', $userTeamIds)
             ->wherePivot('user_id', Auth::id())
             ->first();
 
@@ -159,6 +159,14 @@ class EventController extends Controller
                     foreach ($item['specie_image'] as $image) {
                         $eventCatch->addMedia($image)->toMediaCollection('event_fish_images');
                     }
+                }
+                if (isset($item['glory_photos']) && is_array($item['glory_photos'])) {
+                    foreach ($item['glory_photos'] as $image) {
+                        $eventCatch->addMedia($image)->toMediaCollection('glory_photos');
+                    }
+                }
+                if (isset($item['release_video'])) {
+                    $eventCatch->addMedia($item['release_video'])->toMediaCollection('release_video');
                 }
 
             }
