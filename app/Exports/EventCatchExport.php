@@ -59,7 +59,7 @@ class EventCatchExport implements FromCollection, WithHeadings, WithMapping , Sh
             $catch->specie->name ?? '',
             $catch->fork_length,
             $catch->points,
-            Carbon::parse($catch->catch_time)->format('d M Y h:i A'),
+            Carbon::parse($catch->catch_timestamp)->format('d M Y h:i A'),
             $fishPhoto,
             $extraFishPhotos,
         ];

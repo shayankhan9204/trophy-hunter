@@ -56,6 +56,7 @@
                                                         <th>Team Number</th>
                                                         <th>Team Name</th>
                                                         <th>Angular Name</th>
+                                                        <th>Catch Time</th>
                                                         <th>Specie</th>
                                                         <th>Fork Length (mm)</th>
                                                         <th>Points</th>
@@ -69,6 +70,7 @@
                                                             <td>{{ $catch->team->team_uid ?? '-' }}</td>
                                                             <td>{{ $catch->team->name ?? '-' }}</td>
                                                             <td>{{ $catch->angler->name ?? '-' }}</td>
+                                                            <td>{{ $catch->catch_timestamp ?? '-' }}</td>
                                                             <td>{{ $catch->specie->name ?? '-' }}</td>
                                                             <td>
                                                                 <input type="number"
