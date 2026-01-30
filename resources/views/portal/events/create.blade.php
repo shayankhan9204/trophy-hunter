@@ -53,7 +53,7 @@
                                             @enderror
                                         </div>
 
-                                        <div class="col-md-12">
+                                        <div class="col-md-6">
                                             <div class="form-group">
                                                 <label>Event Location</label>
                                                 <input class="form-control" required type="text" name="location" style="height: 50px !important;"
@@ -63,7 +63,16 @@
                                             <span class="text-danger">{{ $message }}</span>
                                             @enderror
                                         </div>
-
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label>Minimum size for release video</label>
+                                                <input class="form-control" required type="number" name="minimum_release_size" style="height: 50px !important;"
+                                                       value="{{ old('minimum_release_size') }}">
+                                            </div>
+                                            @error('minimum_release_size')
+                                            <span class="text-danger">{{ $message }}</span>
+                                            @enderror
+                                        </div>
 
 {{--                                        <div class="col-md-6">--}}
 {{--                                            <div class="form-group">--}}

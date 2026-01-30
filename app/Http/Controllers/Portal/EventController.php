@@ -116,6 +116,7 @@ class EventController extends Controller
                 'name' => $request->name,
                 'location' => $request->location,
                 'fish_bag_size' => $request->fish_bag_size,
+                'minimum_release_size' => $request->minimum_release_size,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
             ]);
 
@@ -218,6 +219,7 @@ class EventController extends Controller
                 'date' => $request->date,
                 'location' => $request->location,
                 'fish_bag_size' => $request->fish_bag_size ?? $event->fish_bag_size,
+                'minimum_release_size' => $request->minimum_release_size ?? $event->minimum_release_size,
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,

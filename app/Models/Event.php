@@ -18,6 +18,7 @@ class Event extends Model implements HasMedia
 //        'end_time',
         'location',
         'fish_bag_size',
+        'minimum_release_size',
         'is_tagged',
     ];
 
