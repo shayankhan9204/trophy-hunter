@@ -35,6 +35,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/event/{id}/export-catch', [EventController::class, 'exportCatch'])->name('event.export.catch');
     Route::post('/event-catch/delete', [EventController::class, 'deleteSelected'])->name('event.catch.delete');
 
+    Route::get('/event/delete-catch-media/catches', [EventController::class, 'getCatchesForMediaDelete'])->name('event.delete.catch.media.catches');
+    Route::get('/event/delete-catch-media', [EventController::class, 'deleteCatchMediaPage'])->name('event.delete.catch.media');
+    Route::post('/event/delete-catch-media', [EventController::class, 'deleteCatchMedia'])->name('event.delete.catch.media.submit');
+
     Route::get('/event/edit/catch/{id}', [EventController::class, 'editCatch'])->name('event.edit.catch');
     Route::post('/event/catch/update', [EventController::class, 'updateCatchPoints'])->name('event.catch.update');
 

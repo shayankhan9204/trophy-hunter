@@ -26,6 +26,12 @@
         </li>
 
         <li>
+            <a href="{{ route('event.delete.catch.media') }}"><i
+                        class="ti-trash"></i><span>Delete Catch Media</span><span
+                        class="menu-arrow"></span></a>
+        </li>
+
+        <li>
             <a href="{{ route('specie.index') }}"><i
                         class="ti-view-list-alt"></i><span>Species</span><span
                         class="menu-arrow"></span></a>

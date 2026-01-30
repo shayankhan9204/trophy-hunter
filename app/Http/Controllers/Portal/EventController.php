@@ -393,5 +393,91 @@ class EventController extends Controller
         return response()->json(['message' => 'Selected catches deleted successfully.']);
     }
 
+    /**
+     * Page to select an event and delete fish measure photo, glory photo, and/or release video
+     * for selected catches. Data is sortable by fish size (fork length).
+     */
+    public function deleteCatchMediaPage()
+    {
+        $events = Event::with('dates')->orderByDesc('id')->get();
+        return view('portal.events.delete-catch-media', compact('events'));
+    }
 
+    /**
+     * AJAX: return catches for the given event (for delete-catch-media table).
+     */
+    public function getCatchesForMediaDelete(Request $request)
+    {
+        $eventId = $request->event_id;
+        if (!$eventId) {
+            return response()->json(['catches' => []]);
+        }
+
+        $catches = EventCatch::where('event_id', $eventId)
+            ->with(['specie', 'team', 'angler'])
+            ->orderByRaw('CAST(fork_length AS UNSIGNED) ASC')
+            ->get()
+            ->map(function ($catch) {
+                return [
+                    'id' => $catch->id,
+                    'team_uid' => $catch->team->team_uid ?? '-',
+                    'team_name' => $catch->team->name ?? '-',
+                    'angler_name' => $catch->angler->name ?? '-',
+                    'specie_name' => $catch->specie->name ?? '-',
+                    'fork_length' => $catch->fork_length ?? '-',
+                    'fork_length_sort' => is_numeric($catch->fork_length) ? (float) $catch->fork_length : 0,
+                    'has_measure_photo' => $catch->getMedia('event_fish_images')->count() > 0,
+                    'has_glory_photo' => $catch->getMedia('glory_photos')->count() > 0,
+                    'has_release_video' => $catch->getMedia('release_video')->count() > 0,
+                ];
+            });
+
+        return response()->json(['catches' => $catches]);
+    }
+
+    /**
+     * Delete selected media types for selected catches.
+     */
+    public function deleteCatchMedia(Request $request)
+    {
+        $request->validate([
+            'catch_ids' => 'required|array',
+            'catch_ids.*' => 'integer|exists:event_catches,id',
+            'delete_measure_photo' => 'nullable|boolean',
+            'delete_glory_photo' => 'nullable|boolean',
+            'delete_release_video' => 'nullable|boolean',
+        ]);
+
+        $catchIds = $request->catch_ids;
+        $deleteMeasurePhoto = (bool) $request->delete_measure_photo;
+        $deleteGloryPhoto = (bool) $request->delete_glory_photo;
+        $deleteReleaseVideo = (bool) $request->delete_release_video;
+
+        if (!$deleteMeasurePhoto && !$deleteGloryPhoto && !$deleteReleaseVideo) {
+            return response()->json(['message' => 'Please select at least one media type to delete.'], 422);
+        }
+
+        $catches = EventCatch::whereIn('id', $catchIds)->get();
+        $count = 0;
+
+        foreach ($catches as $catch) {
+            if ($deleteMeasurePhoto) {
+                $catch->clearMediaCollection('event_fish_images');
+                $count++;
+            }
+            if ($deleteGloryPhoto) {
+                $catch->clearMediaCollection('glory_photos');
+                $count++;
+            }
+            if ($deleteReleaseVideo) {
+                $catch->clearMediaCollection('release_video');
+                $count++;
+            }
+        }
+
+        return response()->json([
+            'message' => 'Selected media deleted successfully.',
+            'catches_updated' => $catches->count(),
+        ]);
+    }
 }
