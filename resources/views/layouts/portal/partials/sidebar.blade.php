@@ -77,6 +77,12 @@
                     class="menu-arrow"></span></a>
         </li>
 
+        <li>
+            <a href="{{ route('multi.event.ranking.report') }}"><i
+                    class="ti-bar-chart"></i><span>Multi Event Bag Report</span><span
+                    class="menu-arrow"></span></a>
+        </li>
+
         <li class="nk-menu-heading">
             <h6 class="overline-title">Notifications</h6>
         </li>

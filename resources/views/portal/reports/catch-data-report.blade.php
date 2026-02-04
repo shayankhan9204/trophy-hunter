@@ -51,16 +51,16 @@
                                     </div>
 
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <span class="text-muted">{{ $catches->count() }} catch(es)</span>
+                                        <span class="text-muted">Paginated for faster loading</span>
                                         <button type="button" id="delete-selected" class="btn btn-danger">Delete Selected</button>
                                     </div>
 
                                     <div class="table-responsive">
-                                        <table class="table table-bordered table-striped table-hover">
+                                        <table id="catch-data-table" class="table table-bordered table-striped table-hover">
                                             <thead>
                                                 <tr>
                                                     <th class="text-center" style="width: 40px;">
-                                                        <input type="checkbox" id="select-all-catches" title="Select all">
+                                                        <input type="checkbox" id="select-all-catches" title="Select all on this page">
                                                     </th>
                                                     <th>Team #</th>
                                                     <th>Team Name</th>
@@ -75,42 +75,7 @@
                                                     <th>Measure Photo</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
-                                                @forelse($catches as $catch)
-                                                    <tr>
-                                                        <td class="text-center">
-                                                            <input type="checkbox" class="catch-checkbox" value="{{ $catch->id }}">
-                                                        </td>
-                                                        <td>{{ $catch->team->team_uid ?? '-' }}</td>
-                                                        <td>{{ $catch->team->name ?? '-' }}</td>
-                                                        <td>{{ $catch->specie->name ?? '-' }}</td>
-                                                        <td>{{ $catch->fork_length ?? '-' }}</td>
-                                                        <td>{{ $catch->angler->name ?? '-' }}</td>
-                                                        <td>{{ $catch->catch_timestamp ?? '-' }}</td>
-                                                        <td>{{ $catch->tag_type ?? '-' }}</td>
-                                                        <td>{{ $catch->tag_no ?? '-' }}</td>
-                                                        <td>{{ $catch->line_class ?? '-' }}</td>
-                                                        <td>{{ $catch->points ?? '-' }}</td>
-                                                        <td>
-                                                            @php
-                                                                $photoUrl = $catch->getFirstMediaUrl('event_fish_images');
-                                                            @endphp
-                                                            @if($photoUrl)
-                                                                <a href="{{ $photoUrl }}" class="glightbox" data-gallery="catch-report">
-                                                                    <img src="{{ $photoUrl }}" alt="Measure" class="img-thumbnail"
-                                                                         style="width:80px;height:60px;object-fit:contain;cursor:pointer;">
-                                                                </a>
-                                                            @else
-                                                                <span class="text-muted">-</span>
-                                                            @endif
-                                                        </td>
-                                                    </tr>
-                                                @empty
-                                                    <tr>
-                                                        <td colspan="12" class="text-center">No catch data for this event.</td>
-                                                    </tr>
-                                                @endforelse
-                                            </tbody>
+                                            <tbody></tbody>
                                         </table>
                                     </div>
                                 @endif
@@ -128,10 +93,54 @@
 @endsection
 
 @section('script')
+    @if($eventId && $event)
     <script>
         $(document).ready(function () {
-            $('#select-all-catches').on('change', function () {
-                $('.catch-checkbox').prop('checked', $(this).prop('checked'));
+            var table = $('#catch-data-table').DataTable({
+                ajax: {
+                    url: '{{ route('catch.data.report') }}',
+                    data: { event_id: '{{ $eventId }}' }
+                },
+                columns: [
+                    { data: 'select', name: 'select', orderable: false, searchable: false, className: 'text-center' },
+                    { data: 'team_uid', name: 'team_uid' },
+                    { data: 'team_name', name: 'team_name' },
+                    { data: 'specie_name', name: 'specie_name' },
+                    { data: 'fork_length', name: 'fork_length' },
+                    { data: 'angler_name', name: 'angler_name' },
+                    { data: 'catch_timestamp', name: 'catch_timestamp' },
+                    { data: 'tag_type', name: 'tag_type' },
+                    { data: 'tag_no', name: 'tag_no' },
+                    { data: 'line_class', name: 'line_class' },
+                    { data: 'points', name: 'points' },
+                    { data: 'measure_photo', name: 'measure_photo', orderable: false, searchable: false }
+                ],
+                pageLength: 25,
+                lengthMenu: [[25, 50, 100, 200], [25, 50, 100, 200]],
+                order: [[1, 'asc'], [3, 'asc'], [4, 'asc'], [5, 'asc'], [6, 'asc']],
+                dom: '<"row"<"col-sm-6"l><"col-sm-6"f>>rtip',
+                processing: true,
+                language: {
+                    emptyTable: 'No catch data for this event.',
+                    processing: '<div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div>'
+                }
+            });
+
+            table.on('draw.dt', function () {
+                if (typeof GLightbox !== 'undefined') {
+                    GLightbox({ selector: '.glightbox' });
+                }
+            });
+
+            $('#catch-data-table').on('change', '#select-all-catches', function () {
+                var checked = $(this).prop('checked');
+                $('#catch-data-table tbody .catch-checkbox').prop('checked', checked);
+            });
+
+            $('#catch-data-table').on('change', '.catch-checkbox', function () {
+                var total = $('#catch-data-table tbody .catch-checkbox').length;
+                var checked = $('#catch-data-table tbody .catch-checkbox:checked').length;
+                $('#select-all-catches').prop('checked', total > 0 && total === checked);
             });
 
             $('#delete-selected').on('click', function () {
@@ -158,7 +167,7 @@
                     },
                     success: function (response) {
                         toastr.success(response.message || 'Selected catches deleted successfully.');
-                        location.reload();
+                        table.ajax.reload();
                     },
                     error: function (xhr) {
                         var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Error deleting catches.';
@@ -168,4 +177,5 @@
             });
         });
     </script>
+    @endif
 @endsection

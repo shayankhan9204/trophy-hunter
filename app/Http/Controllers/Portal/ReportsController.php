@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\EventCatch;
+use App\Models\Specie;
 use App\Models\Team;
 use App\Models\User;
 use Carbon\Carbon;
@@ -394,28 +395,271 @@ class ReportsController extends Controller
     /**
      * Catch Data Report: grouped by TEAM → SPECIES → FORK LENGTH → ANGLER → DATE/TIME.
      * Shows all catch data including timestamp and measure photo. Allows selecting and deleting rows.
+     * Uses server-side pagination for faster loading.
      */
     public function catchDataReport(Request $request)
     {
         $events = Event::orderByDesc('id')->get();
         $eventId = $request->get('event_id');
         $event = null;
-        $catches = collect();
+
+        if ($request->ajax()) {
+            if (!$eventId) {
+                return DataTables::of(collect())->make(true);
+            }
+            $event = Event::find($eventId);
+            if (!$event) {
+                return DataTables::of(collect())->make(true);
+            }
+
+            $query = EventCatch::where('event_id', $eventId)
+                ->with(['team', 'specie', 'angler'])
+                ->orderBy('team_id')
+                ->orderBy('specie_id')
+                ->orderByRaw('CAST(fork_length AS UNSIGNED) ASC')
+                ->orderBy('angler_id')
+                ->orderBy('catch_timestamp');
+
+            return DataTables::eloquent($query)
+                ->addColumn('select', function ($catch) {
+                    return '<input type="checkbox" class="catch-checkbox" value="' . $catch->id . '">';
+                })
+                ->addColumn('team_uid', function ($catch) {
+                    return $catch->team->team_uid ?? '-';
+                })
+                ->addColumn('team_name', function ($catch) {
+                    return $catch->team->name ?? '-';
+                })
+                ->addColumn('specie_name', function ($catch) {
+                    return $catch->specie->name ?? '-';
+                })
+                ->addColumn('angler_name', function ($catch) {
+                    return $catch->angler->name ?? '-';
+                })
+                ->addColumn('measure_photo', function ($catch) {
+                    $photoUrl = $catch->getFirstMediaUrl('event_fish_images');
+                    if ($photoUrl) {
+                        return '<a href="' . e($photoUrl) . '" class="glightbox" data-gallery="catch-report">' .
+                            '<img src="' . e($photoUrl) . '" alt="Measure" class="img-thumbnail" style="width:80px;height:60px;object-fit:contain;cursor:pointer;"></a>';
+                    }
+                    return '<span class="text-muted">-</span>';
+                })
+                ->removeColumn('event_id')
+                ->removeColumn('team_id')
+                ->removeColumn('angler_id')
+                ->removeColumn('specie_id')
+                ->removeColumn('created_at')
+                ->removeColumn('updated_at')
+                ->rawColumns(['select', 'measure_photo'])
+                ->make(true);
+        }
 
         if ($eventId) {
             $event = Event::find($eventId);
-            if ($event) {
-                $catches = EventCatch::where('event_id', $eventId)
-                    ->with(['team', 'specie', 'angler'])
-                    ->orderBy('team_id')
-                    ->orderBy('specie_id')
-                    ->orderByRaw('CAST(fork_length AS UNSIGNED) ASC')
-                    ->orderBy('angler_id')
-                    ->orderBy('catch_timestamp')
-                    ->get();
-            }
         }
 
-        return view('portal.reports.catch-data-report', compact('events', 'event', 'catches', 'eventId'));
+        return view('portal.reports.catch-data-report', compact('events', 'event', 'eventId'));
+    }
+
+    /**
+     * Multi Event Bag Report:
+     * Select multiple events, one species, and max number of fish per event per team.
+     *
+     * Fish selection rules:
+     * - Only include fish of selected species
+     * - For each selected event, for each team that participated in that event:
+     *   select highest-point fish first (points DESC) and include up to N
+     *   (tie-breaker: fork_length DESC)
+     *
+     * Scoring & ranking:
+     * - Combine selected fish across selected events per team
+     * - Total points = sum(points) of selected fish
+     * - Rank teams by total points DESC
+     *
+     * Edge cases:
+     * - Teams missing some events are still included
+     * - Only fish from events where the team participated are counted
+     */
+    public function multiEventRankingReport(Request $request)
+    {
+        $events = Event::orderByDesc('id')->get();
+        $species = Specie::orderBy('name')->get();
+
+        $selectedEventIds = array_values(array_filter((array) $request->get('event_ids', [])));
+        $specieId = $request->get('specie_id');
+        $maxFishPerEvent = (int) $request->get('max_fish_per_event', 1);
+
+        $teamRankings = collect();
+        $eventSections = collect();
+
+        if (!empty($selectedEventIds) && $specieId && $maxFishPerEvent > 0) {
+            $request->validate([
+                'event_ids' => 'required|array|min:1',
+                'event_ids.*' => 'integer|exists:events,id',
+                'specie_id' => 'required|integer|exists:species,id',
+                'max_fish_per_event' => 'required|integer|min:1',
+            ]);
+
+            // Participation (event_id + team_id) defines which team "participated" in each event
+            $participations = DB::table('event_team_user')
+                ->whereIn('event_id', $selectedEventIds)
+                ->whereNull('deleted_at')
+                ->select('event_id', 'team_id')
+                ->distinct()
+                ->get();
+
+            $participatedTeamIds = $participations->pluck('team_id')->unique()->values();
+            $participatedEventIdsByTeam = $participations
+                ->groupBy('team_id')
+                ->map(fn ($rows) => $rows->pluck('event_id')->unique()->values()->all());
+            $participatedTeamIdsByEvent = $participations
+                ->groupBy('event_id')
+                ->map(fn ($rows) => $rows->pluck('team_id')->unique()->values()->all());
+
+            $teamsById = Team::whereIn('id', $participatedTeamIds)->get()->keyBy('id');
+            $eventsById = $events->keyBy('id');
+
+            // Fetch top N catches per (team,event) using window function for speed & correctness
+            $candidateCatches = DB::table('event_catches')
+                ->whereIn('event_id', $selectedEventIds)
+                ->whereIn('team_id', $participatedTeamIds)
+                ->where('specie_id', $specieId)
+                ->select([
+                    'id',
+                    'event_id',
+                    'team_id',
+                    'fork_length',
+                    'points',
+                    DB::raw('ROW_NUMBER() OVER (PARTITION BY team_id, event_id ORDER BY points DESC, CAST(fork_length AS UNSIGNED) DESC) as rn')
+                ])
+                ->having('rn', '<=', $maxFishPerEvent)
+                ->orderBy('team_id')
+                ->orderBy('event_id')
+                ->orderBy('rn')
+                ->get();
+
+            // Group catches by team_id then event_id (already limited to top N)
+            $catchesByTeamEvent = $candidateCatches
+                ->groupBy(['team_id', 'event_id']);
+
+            $teamTotals = [];
+
+            foreach ($participatedTeamIds as $teamId) {
+                $team = $teamsById->get($teamId);
+                if (!$team) {
+                    continue;
+                }
+
+                $totalPoints = 0;
+                $fishDetails = [];
+
+                $teamEventIds = $participatedEventIdsByTeam->get($teamId, []);
+                foreach ($teamEventIds as $eventId) {
+                    // Only consider events where this team participated
+                    $selected = $catchesByTeamEvent[$teamId][$eventId] ?? collect();
+
+                    $eventPoints = $selected->sum('points');
+                    $totalPoints += $eventPoints;
+
+                    $fishDetails[] = [
+                        'event_id' => $eventId,
+                        'event_name' => $eventsById->get($eventId)->name ?? 'Unknown',
+                        'fish_count' => $selected->count(),
+                        'points' => $eventPoints,
+                        'top_fish_fork_length' => $selected->first()->fork_length ?? '-',
+                    ];
+                }
+
+                // Include team even if totalPoints is 0 (participated but caught none of selected species)
+                $teamTotals[] = [
+                    'team_id' => $teamId,
+                    'team_uid' => $team->team_uid ?? '-',
+                    'team_name' => $team->name ?? '-',
+                    'total_points' => (float) $totalPoints,
+                    'fish_details' => $fishDetails,
+                    'events_participated' => count($fishDetails), // participation events (not just scoring)
+                    'total_events' => count($selectedEventIds),
+                ];
+            }
+
+            // Sort by total points DESC, then team_uid ASC for stable ordering
+            usort($teamTotals, function ($a, $b) {
+                $pointsCmp = ($b['total_points'] <=> $a['total_points']);
+                if ($pointsCmp !== 0) {
+                    return $pointsCmp;
+                }
+                return strcmp((string) $a['team_uid'], (string) $b['team_uid']);
+            });
+
+            // Add rank
+            $rank = 1;
+            foreach ($teamTotals as &$teamData) {
+                $teamData['rank'] = $rank++;
+            }
+
+            $teamRankings = collect($teamTotals);
+
+            // Build per-event sections for the UI (event heading -> list of teams)
+            $sections = [];
+            foreach ($selectedEventIds as $eventId) {
+                $event = $eventsById->get($eventId);
+                if (!$event) {
+                    continue;
+                }
+
+                $teamIdsForEvent = $participatedTeamIdsByEvent->get($eventId, []);
+                $rows = [];
+
+                foreach ($teamIdsForEvent as $teamId) {
+                    $team = $teamsById->get($teamId);
+                    if (!$team) {
+                        continue;
+                    }
+
+                    $selected = $catchesByTeamEvent[$teamId][$eventId] ?? collect();
+                    $eventPoints = $selected->sum('points');
+
+                    $rows[] = [
+                        'team_id' => $teamId,
+                        'team_uid' => $team->team_uid ?? '-',
+                        'team_name' => $team->name ?? '-',
+                        'fish_count' => $selected->count(),
+                        'points' => (float) $eventPoints,
+                        'fish' => $selected->map(fn ($c) => [
+                            'catch_id' => $c->id,
+                            'fork_length' => $c->fork_length,
+                            'points' => $c->points,
+                        ])->values()->all(),
+                    ];
+                }
+
+                // Sort teams within each event by points DESC, then team_uid ASC
+                usort($rows, function ($a, $b) {
+                    $pointsCmp = ($b['points'] <=> $a['points']);
+                    if ($pointsCmp !== 0) {
+                        return $pointsCmp;
+                    }
+                    return strcmp((string) $a['team_uid'], (string) $b['team_uid']);
+                });
+
+                $sections[] = [
+                    'event_id' => $eventId,
+                    'event_name' => $event->name ?? 'Unknown',
+                    'teams' => $rows,
+                ];
+            }
+
+            $eventSections = collect($sections);
+        }
+
+        return view('portal.reports.multi-event-ranking-report', compact(
+            'events',
+            'species',
+            'selectedEventIds',
+            'specieId',
+            'maxFishPerEvent',
+            'teamRankings',
+            'eventSections'
+        ));
     }
 }
