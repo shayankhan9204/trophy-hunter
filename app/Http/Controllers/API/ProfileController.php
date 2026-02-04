@@ -33,9 +33,9 @@ class ProfileController extends Controller
             'profile.emergency_contact_name' => 'nullable|string|max:255',
             'profile.emergency_contact_number' => 'nullable|string|max:255',
 
-            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'boat_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:4096',
-            'insurance_certificate' => 'nullable|mimes:jpeg,png,jpg,pdf|max:4096',
+            'profile_picture' => 'nullable|image',
+            'boat_photo' => 'nullable|image',
+            'insurance_certificate' => 'nullable',
         ]);
 
         DB::beginTransaction();
