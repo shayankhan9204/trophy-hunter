@@ -105,8 +105,8 @@
                                             <th>Fork Length</th>
                                             <th>Date & Time</th>
                                             <th>Points</th>
-                                            <th>Fish Photo</th>
-                                            <th>Extra Fish Photo</th>
+                                            <th>Glory Fish Photo</th>
+                                            <th>Measure Photo</th>
                                         </tr>
                                         </thead>
                                     </table>

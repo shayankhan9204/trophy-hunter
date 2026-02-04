@@ -55,13 +55,19 @@
 
         <li>
             <a href="{{ route('extra.photo.report') }}"><i
-                        class="ti-view-list-alt"></i><span>Photo Extra Report</span><span
+                        class="ti-view-list-alt"></i><span>Glory Fish Photo</span><span
                         class="menu-arrow"></span></a>
         </li>
 
         <li>
             <a href="{{ route('event.login.report') }}"><i
                     class="ti-view-list-alt"></i><span>Login Report</span><span
+                    class="menu-arrow"></span></a>
+        </li>
+
+        <li>
+            <a href="{{ route('team.profiles.report') }}"><i
+                    class="ti-user"></i><span>Teams Profiles Report</span><span
                     class="menu-arrow"></span></a>
         </li>
 

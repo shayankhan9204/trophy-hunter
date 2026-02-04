@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\EventCatch;
+use App\Models\Team;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -174,7 +176,10 @@ class ReportsController extends Controller
 
         if ($request->ajax()) {
             $catchesQuery = EventCatch::with(['angler', 'team', 'specie'])
-                ->where('event_id', $eventId);
+                ->where('event_id', $eventId)
+                ->whereHas('media', function ($query) {
+                    $query->where('collection_name', 'glory_photos');
+                });
 
             if (!empty($specieIds)) {
                 $catchesQuery->whereIn('specie_id', (array)$specieIds);
@@ -187,14 +192,13 @@ class ReportsController extends Controller
             }
 
             $catches = $catchesQuery->orderByDesc('created_at')->get();
-
             $finalRows = collect();
 
             foreach ($catches as $index => $catch) {
                 $teamCatches = $catches->where('team_id', $catch->team_id);
 
-                $mediaItems = $catch->getMedia('event_fish_images');
-                if ($mediaItems->count() <= 1) {
+                $mediaItems = $catch->getMedia('glory_photos');
+                if ($mediaItems->count() == 0) {
                     continue;
                 }
 
@@ -217,18 +221,18 @@ class ReportsController extends Controller
                     : 'No Photo';
 
                 $extraPhoto = '';
+                $measurePhotos = $catch->getMedia('event_fish_images');
 
-                if ($mediaItems->count() > 1) {
+                if ($mediaItems->count() > 0) {
                     $extraItems = $mediaItems->slice(1);
-                    foreach ($extraItems as $media) {
-                        $url = $media->getUrl();
-                        $extraPhoto .= '<a href="' . e($url) . '" class="glightbox" data-gallery="team-' . $catch->team_id . '">';
-                        $extraPhoto .= '<img src="' . e($url) . '" class="img-thumbnail m-1" '
-                            . 'style="width:130px;height:90px;object-fit:contain;cursor:pointer;" />';
-                        $extraPhoto .= '</a>';
-                    }
+                    $measurePhotoUrl = $measurePhotos->first()?->getUrl();
+
+                    $extraPhoto .= '<a href="' . e($measurePhotoUrl) . '" class="glightbox" data-gallery="team-' . $catch->team_id . '">';
+                    $extraPhoto .= '<img src="' . e($measurePhotoUrl) . '" class="img-thumbnail m-1" '
+                        . 'style="width:130px;height:90px;object-fit:contain;cursor:pointer;" />';
+                    $extraPhoto .= '</a>';
                 } else {
-                    $extraPhoto = 'No Extra Photos';
+                    $extraPhoto = 'No Measure Photos';
                 }
 
                 $finalRows->push([
@@ -325,4 +329,65 @@ class ReportsController extends Controller
         return view('portal.reports.event-login-report', compact('events' , 'dates'));
     }
 
+    /**
+     * Teams Profiles Report: shows profile data and photos for each team.
+     * Can show more than one user per team when multiple users are signed in for that team.
+     */
+    public function teamProfilesReport(Request $request)
+    {
+        $events = Event::orderByDesc('id')->get();
+        $eventId = $request->get('event_id');
+        $teamSearch = $request->get('team_search');
+        $teamsWithUsers = collect();
+
+        if ($eventId) {
+            $teamUserIds = DB::table('event_team_user')
+                ->where('event_id', $eventId)
+                ->whereNull('deleted_at')
+                ->select('team_id', 'user_id', 'angular_uid')
+                ->get()
+                ->groupBy('team_id');
+
+            foreach ($teamUserIds as $teamId => $pivots) {
+                $team = Team::find($teamId);
+                if (!$team) {
+                    continue;
+                }
+
+                if ($teamSearch) {
+                    $search = strtolower(trim($teamSearch));
+                    $nameMatch = str_contains(strtolower($team->name ?? ''), $search);
+                    $uidMatch = str_contains(strtolower($team->team_uid ?? ''), $search);
+                    if (!$nameMatch && !$uidMatch) {
+                        continue;
+                    }
+                }
+
+                $users = collect();
+                $seenUserIds = [];
+                foreach ($pivots as $pivot) {
+                    if (in_array($pivot->user_id, $seenUserIds)) {
+                        continue;
+                    }
+                    $seenUserIds[] = $pivot->user_id;
+                    $user = User::with('profile')->find($pivot->user_id);
+                    if ($user) {
+                        $users->push((object) [
+                            'user' => $user,
+                            'angular_uid' => $pivot->angular_uid,
+                        ]);
+                    }
+                }
+
+                if ($users->isNotEmpty()) {
+                    $teamsWithUsers->push((object) [
+                        'team' => $team,
+                        'users' => $users,
+                    ]);
+                }
+            }
+        }
+
+        return view('portal.reports.team-profiles-report', compact('events', 'teamsWithUsers', 'eventId', 'teamSearch'));
+    }
 }

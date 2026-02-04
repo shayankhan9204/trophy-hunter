@@ -60,7 +60,7 @@
                                             <th>Specie</th>
                                             <th>Fork Length</th>
                                             <th>Points</th>
-                                            <th>Fish Photo</th>
+                                            <th>Measure Photo</th>
                                         </tr>
                                         </thead>
                                     </table>
