@@ -520,19 +520,21 @@ class ReportsController extends Controller
             $eventsById = $events->keyBy('id');
 
             // Fetch top N catches per (team,event) using window function for speed & correctness
-            $candidateCatches = DB::table('event_catches')
-                ->whereIn('event_id', $selectedEventIds)
-                ->whereIn('team_id', $participatedTeamIds)
-                ->where('specie_id', $specieId)
-                ->select([
-                    'id',
-                    'event_id',
-                    'team_id',
-                    'fork_length',
-                    'points',
-                    DB::raw('ROW_NUMBER() OVER (PARTITION BY team_id, event_id ORDER BY points DESC, CAST(fork_length AS UNSIGNED) DESC) as rn')
-                ])
-                ->having('rn', '<=', $maxFishPerEvent)
+            $candidateCatches = DB::query()->fromSub(function ($q) use ($selectedEventIds, $participatedTeamIds, $specieId) {
+                $q->from('event_catches')
+                    ->whereIn('event_id', $selectedEventIds)
+                    ->whereIn('team_id', $participatedTeamIds)
+                    ->where('specie_id', $specieId)
+                    ->select([
+                        'id',
+                        'event_id',
+                        'team_id',
+                        'fork_length',
+                        'points',
+                        DB::raw('ROW_NUMBER() OVER (PARTITION BY team_id, event_id ORDER BY CAST(points AS DECIMAL(12,4)) DESC, CAST(fork_length AS UNSIGNED) DESC) as rn')
+                    ]);
+            }, 't')
+                ->where('rn', '<=', $maxFishPerEvent)
                 ->orderBy('team_id')
                 ->orderBy('event_id')
                 ->orderBy('rn')
