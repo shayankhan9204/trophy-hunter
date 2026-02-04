@@ -71,6 +71,12 @@
                     class="menu-arrow"></span></a>
         </li>
 
+        <li>
+            <a href="{{ route('catch.data.report') }}"><i
+                    class="ti-list"></i><span>Catch Data Report</span><span
+                    class="menu-arrow"></span></a>
+        </li>
+
         <li class="nk-menu-heading">
             <h6 class="overline-title">Notifications</h6>
         </li>

@@ -390,4 +390,32 @@ class ReportsController extends Controller
 
         return view('portal.reports.team-profiles-report', compact('events', 'teamsWithUsers', 'eventId', 'teamSearch'));
     }
+
+    /**
+     * Catch Data Report: grouped by TEAM → SPECIES → FORK LENGTH → ANGLER → DATE/TIME.
+     * Shows all catch data including timestamp and measure photo. Allows selecting and deleting rows.
+     */
+    public function catchDataReport(Request $request)
+    {
+        $events = Event::orderByDesc('id')->get();
+        $eventId = $request->get('event_id');
+        $event = null;
+        $catches = collect();
+
+        if ($eventId) {
+            $event = Event::find($eventId);
+            if ($event) {
+                $catches = EventCatch::where('event_id', $eventId)
+                    ->with(['team', 'specie', 'angler'])
+                    ->orderBy('team_id')
+                    ->orderBy('specie_id')
+                    ->orderByRaw('CAST(fork_length AS UNSIGNED) ASC')
+                    ->orderBy('angler_id')
+                    ->orderBy('catch_timestamp')
+                    ->get();
+            }
+        }
+
+        return view('portal.reports.catch-data-report', compact('events', 'event', 'catches', 'eventId'));
+    }
 }

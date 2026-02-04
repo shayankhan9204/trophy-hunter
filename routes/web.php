@@ -58,6 +58,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/extra-photo-report', [ReportsController::class, 'extraPhotoReport'])->name('extra.photo.report');
     Route::get('/event-login-report', [ReportsController::class, 'eventLoginReport'])->name('event.login.report');
     Route::get('/team-profiles-report', [ReportsController::class, 'teamProfilesReport'])->name('team.profiles.report');
+    Route::get('/catch-data-report', [ReportsController::class, 'catchDataReport'])->name('catch.data.report');
 
     Route::get('/get-species-by-event', [EventController::class, 'getSpeciesByEvent'])->name('get.species.by.event');
 
