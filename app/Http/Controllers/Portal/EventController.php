@@ -343,20 +343,65 @@ class EventController extends Controller
     public function editCatch($id)
     {
         $event = Event::where('id', $id)
-            ->with(['catches.specie' , 'catches.team', 'catches.angler' , 'species'])->first();
+            ->with(['catches.specie', 'catches.team', 'catches.angler', 'species'])->first();
 
-        return view('portal.events.edit-catch', compact( 'event' ));
+        if (!$event) {
+            abort(404);
+        }
+
+        // Teams in this event with their anglers (for angler dropdowns and add-catch form)
+        $teamsInEvent = Team::whereHas('events', function ($q) use ($id) {
+            $q->where('event_id', $id);
+        })
+            ->with(['anglers' => function ($q) use ($id) {
+                $q->wherePivot('event_id', $id);
+            }])
+            ->get();
+
+        return view('portal.events.edit-catch', compact('event', 'teamsInEvent'));
     }
 
+    /**
+     * AJAX: return anglers (users) for a team in an event (for add-catch angler dropdown).
+     */
+    public function getAnglersForEventTeam(Request $request)
+    {
+        $eventId = $request->event_id;
+        $teamId = $request->team_id;
+        if (!$eventId || !$teamId) {
+            return response()->json(['anglers' => []]);
+        }
+
+        $team = Team::where('id', $teamId)
+            ->whereHas('events', function ($q) use ($eventId) {
+                $q->where('event_id', $eventId);
+            })
+            ->with(['anglers' => function ($q) use ($eventId) {
+                $q->wherePivot('event_id', $eventId)->orderBy('name');
+            }])
+            ->first();
+
+        if (!$team) {
+            return response()->json(['anglers' => []]);
+        }
+
+        $anglers = $team->anglers->map(function ($u) {
+            return ['id' => $u->id, 'name' => $u->name];
+        });
+
+        return response()->json(['anglers' => $anglers]);
+    }
 
     public function updateCatchPoints(Request $request)
     {
         $pointsData = $request->input('points', []);
         $forkData   = $request->input('fork_length', []);
-
+        $anglerData = $request->input('angler_id', []);
+dd($anglerData);
         $catchIds = array_unique(array_merge(
             array_keys($pointsData),
-            array_keys($forkData)
+            array_keys($forkData),
+            array_keys($anglerData)
         ));
 
         foreach ($catchIds as $catchId) {
@@ -373,12 +418,71 @@ class EventController extends Controller
                 $catch->fork_length = $forkData[$catchId];
             }
 
+            if (array_key_exists($catchId, $anglerData) && $anglerData[$catchId]) {
+                $catch->angler_id = $anglerData[$catchId];
+            }
+
             $catch->save();
         }
 
         return redirect()
             ->back()
-            ->with('success', 'Catch points and fork lengths updated successfully.');
+            ->with('success', 'Catch data updated successfully.');
+    }
+
+    /**
+     * Store a new catch for an event (from edit-catch page).
+     */
+    public function storeCatch(Request $request)
+    {
+        $event = Event::findOrFail($request->event_id);
+
+        $rules = [
+            'event_id' => 'required|exists:events,id',
+            'team_id' => 'required|exists:teams,id',
+            'angler_id' => 'required|exists:users,id',
+            'specie_id' => 'required|exists:species,id',
+            'fork_length' => 'required',
+            'points' => 'nullable',
+            'catch_timestamp' => 'nullable|string',
+        ];
+
+        if ($event->is_tagged) {
+            $rules['tag_type'] = 'nullable|string|max:255';
+            $rules['tag_no'] = 'nullable|string|max:255';
+            $rules['line_class'] = 'nullable|string|max:255';
+        }
+
+        $request->validate($rules);
+
+        // Ensure angler is in this team for this event
+        $exists = DB::table('event_team_user')
+            ->where('event_id', $request->event_id)
+            ->where('team_id', $request->team_id)
+            ->where('user_id', $request->angler_id)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (!$exists) {
+            return redirect()->back()->with('error', 'Selected angler is not in the selected team for this event.');
+        }
+
+        EventCatch::create([
+            'event_id' => $request->event_id,
+            'team_id' => $request->team_id,
+            'angler_id' => $request->angler_id,
+            'specie_id' => $request->specie_id,
+            'fork_length' => $request->fork_length,
+            'tag_type' => $event->is_tagged ? ($request->tag_type ?? '') : null,
+            'tag_no' => $event->is_tagged ? ($request->tag_no ?? '') : null,
+            'line_class' => $event->is_tagged ? ($request->line_class ?? '') : null,
+            'points' => $request->points ?? null,
+            'catch_timestamp' => $request->catch_timestamp ?? now()->toDateTimeString(),
+        ]);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Catch record created successfully.');
     }
 
     public function deleteSelected(Request $request)
