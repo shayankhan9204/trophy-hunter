@@ -302,6 +302,7 @@ class EventController extends Controller
 //        $event->teams()->detach();
         $event->contacts()->delete();
         $event->rules()->delete();
+        $event->catches()->delete();
         $event->clearMediaCollection('sponsors');
 
         $event->delete();
