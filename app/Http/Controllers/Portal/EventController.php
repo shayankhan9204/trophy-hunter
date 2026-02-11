@@ -397,7 +397,7 @@ class EventController extends Controller
         $pointsData = $request->input('points', []);
         $forkData   = $request->input('fork_length', []);
         $anglerData = $request->input('angler_id', []);
-dd($anglerData);
+        
         $catchIds = array_unique(array_merge(
             array_keys($pointsData),
             array_keys($forkData),
