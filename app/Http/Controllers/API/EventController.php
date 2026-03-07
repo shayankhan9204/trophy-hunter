@@ -141,7 +141,11 @@ class EventController extends Controller
 
             foreach ($request->fish_bag as $item) {
                 $angler = User::find($item['angler_id']);
+                $exists = EventCatch::where('catch_timestamp', $item['created_at'])->first();
 
+                if ($exists) {
+                    continue; // skip duplicate
+                }
                 $eventCatch = EventCatch::create([
                     'event_id' => $event->id,
                     'team_id' => $item['team_id'] ?? null,

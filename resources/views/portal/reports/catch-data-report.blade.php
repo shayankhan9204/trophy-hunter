@@ -73,6 +73,7 @@
                                                     <th>Line Class</th>
                                                     <th>Points</th>
                                                     <th>Measure Photo</th>
+                                                    <th>Release Video</th>
                                                 </tr>
                                             </thead>
                                             <tbody></tbody>
@@ -113,7 +114,8 @@
                     { data: 'tag_no', name: 'tag_no' },
                     { data: 'line_class', name: 'line_class' },
                     { data: 'points', name: 'points' },
-                    { data: 'measure_photo', name: 'measure_photo', orderable: false, searchable: false }
+                    { data: 'measure_photo', name: 'measure_photo', orderable: false, searchable: false },
+                    { data: 'release_video', name: 'release_video', orderable: false, searchable: false }
                 ],
                 pageLength: 25,
                 lengthMenu: [[25, 50, 100, 200], [25, 50, 100, 200]],

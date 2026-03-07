@@ -61,6 +61,7 @@
                                             <th>Fork Length</th>
                                             <th>Points</th>
                                             <th>Measure Photo</th>
+                                            <th>Release Video</th>
                                         </tr>
                                         </thead>
                                     </table>
@@ -106,6 +107,7 @@
                         { data: 'fork_length', name: 'fork_length' },
                         { data: 'points', name: 'points' },
                         { data: 'fish_photo', name: 'fish_photo' },
+                        { data: 'release_video', name: 'release_video' },
                         { data: 'is_summary_row', visible: false }
                     ],
                     rowCallback: function (row, data) {

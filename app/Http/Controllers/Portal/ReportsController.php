@@ -75,6 +75,14 @@ class ReportsController extends Controller
                         . '</a>'
                         : 'No Photo';
 
+                    $videoUrl = $catch->getFirstMediaUrl('release_video');
+
+                   $releaseVideo = $videoUrl
+                    ? '<a href="' . e($videoUrl) . '" class="glightbox">
+                        View Video
+                    </a>'
+                    : 'No Video';
+
                     $finalRows->push([
                         'rank' => $rank,
                         'team_id' => $teamId,
@@ -86,6 +94,7 @@ class ReportsController extends Controller
                         'fork_length' => $catch->fork_length,
                         'points' => $catch->points,
                         'fish_photo' => $fishPhoto,
+                        'release_video' => $releaseVideo, 
                         'is_summary_row' => false,
                     ]);
 
@@ -104,6 +113,7 @@ class ReportsController extends Controller
                     'fork_length' => '<strong>Total Points</strong>',
                     'points' => '<strong>' . $totalPoints . '</strong>',
                     'fish_photo' => '',
+                    'release_video' => '',
                     'is_summary_row' => true,
                 ]);
             }
@@ -444,13 +454,22 @@ class ReportsController extends Controller
                     }
                     return '<span class="text-muted">-</span>';
                 })
+                ->addColumn('release_video', function ($catch) {
+                    $videoUrl = $catch->getFirstMediaUrl('release_video');
+                    if ($videoUrl) {
+                        return '<a href="' . e($videoUrl) . '" class="glightbox">
+                        View Video
+                    </a>';
+                    }
+                    return '<span class="text-muted">-</span>';
+                })
                 ->removeColumn('event_id')
                 ->removeColumn('team_id')
                 ->removeColumn('angler_id')
                 ->removeColumn('specie_id')
                 ->removeColumn('created_at')
                 ->removeColumn('updated_at')
-                ->rawColumns(['select', 'measure_photo'])
+                ->rawColumns(['select', 'measure_photo', 'measure_photo'])
                 ->make(true);
         }
 
