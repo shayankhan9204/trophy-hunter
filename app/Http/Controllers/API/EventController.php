@@ -111,6 +111,8 @@ class EventController extends Controller
 
     public function submitBag(Request $request, $event_id = null)
     {
+            DB::beginTransaction();
+
         try {
             $request->validate([
                 'fish_bag' => 'required|array|min:1',
@@ -141,7 +143,11 @@ class EventController extends Controller
 
             foreach ($request->fish_bag as $item) {
                 $angler = User::find($item['angler_id']);
-                $exists = EventCatch::where('catch_timestamp', $item['created_at'])->first();
+                $exists = EventCatch::where('event_id', $event->id)
+                ->where('team_id', $item['team_id'] ?? null)
+                ->where('angler_id', $item['angler_id'])
+                ->where('catch_timestamp', $item['created_at'] ?? null)
+                ->exists();
 
                 if ($exists) {
                     continue; // skip duplicate
@@ -175,9 +181,13 @@ class EventController extends Controller
 
             }
 
+                    DB::commit();
+
             return APIResponse::success('Bag Submitted Successfully');
 
         } catch (\Exception $exception) {
+                    DB::rollBack();
+
             return APIResponse::error($exception->getMessage());
         }
     }
