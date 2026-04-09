@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class EventController extends Controller
 {
@@ -167,17 +168,62 @@ class EventController extends Controller
 
                 if (isset($item['specie_image']) && is_array($item['specie_image'])) {
                     foreach ($item['specie_image'] as $image) {
-                        $eventCatch->addMedia($image)->toMediaCollection('event_fish_images');
+                        // $eventCatch->addMedia($image)->toMediaCollection('event_fish_images');
+                         Media::create([
+                            'model_type' => EventCatch::class,
+                            'model_id' => $eventCatch->id,
+                            'collection_name' => 'event_fish_images',
+                            'name' => 'fish-image',
+                            'file_name' => basename($image),
+                            'disk' => 'public',
+                            'size' => 0,
+                            'custom_properties' => [
+                                'url' => $image
+                            ],
+                            'manipulations' => [],
+                            'generated_conversions' => [],
+                            'responsive_images' => [],
+                        ]);
                     }
                 }
                 if (isset($item['glory_photos']) && is_array($item['glory_photos'])) {
                     foreach ($item['glory_photos'] as $image) {
-                        $eventCatch->addMedia($image)->toMediaCollection('glory_photos');
+                        // $eventCatch->addMedia($image)->toMediaCollection('glory_photos');
+                        Media::create([
+                            'model_type' => EventCatch::class,
+                            'model_id' => $eventCatch->id,
+                            'collection_name' => 'glory_photos',
+                            'name' => 'fish-image',
+                            'file_name' => basename($image),
+                            'disk' => 'public',
+                            'size' => 0,
+                            'custom_properties' => [
+                                'url' => $image
+                            ],
+                            'manipulations' => [],
+                            'generated_conversions' => [],
+                            'responsive_images' => [],
+                        ]);
                     }
                 }
                 if (isset($item['release_video'])) {
-                    $eventCatch->addMedia($item['release_video'])->toMediaCollection('release_video');
-                }
+                    // $eventCatch->addMedia($item['release_video'])->toMediaCollection('release_video');
+                        Media::create([
+                            'model_type' => EventCatch::class,
+                            'model_id' => $eventCatch->id,
+                            'collection_name' => 'release_video',
+                            'name' => 'fish-image',
+                            'file_name' => basename($item['release_video']),
+                            'disk' => 'public',
+                            'size' => 0,
+                            'custom_properties' => [
+                                'url' => $item['release_video']
+                            ],
+                            'manipulations' => [],
+                            'generated_conversions' => [],
+                            'responsive_images' => [],
+                        ]);
+                    }
 
             }
 

@@ -38,4 +38,41 @@ class EventCatch extends Model implements HasMedia
         return $this->belongsTo(Specie::class, 'specie_id', 'id');
     }
 
+    
+    public function getFirstMediaUrl(string $collectionName = 'default', string $conversionName = ''): string
+    {
+        $media = $this->getFirstMedia($collectionName);
+
+        if (!$media) {
+            return '';
+        }
+
+        // If URL exists in custom_properties, return it
+        if ($media->getCustomProperty('url')) {
+            return $media->getCustomProperty('url');
+        }
+
+        // fallback to default behavior
+        return $media->getUrl($conversionName);
+    }
+
+    public function getFullUrl(string $conversionName = ''): string
+    {
+        // if url stored in custom_properties
+        if ($this->getCustomProperty('url')) {
+            return $this->getCustomProperty('url');
+        }
+
+        return parent::getFullUrl($conversionName);
+    }
+
+    public function getUrl(string $conversionName = ''): string
+    {
+        if ($this->getCustomProperty('url')) {
+            return $this->getCustomProperty('url');
+        }
+
+        return $this->getUrl($conversionName);
+    }
+
 }

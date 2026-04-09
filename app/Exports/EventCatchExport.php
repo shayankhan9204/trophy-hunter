@@ -46,9 +46,11 @@ class EventCatchExport implements FromCollection, WithHeadings, WithMapping , Sh
     {
         $mediaItems = $catch->getMedia('event_fish_images');
 
-        $fishPhoto = $mediaItems->get(0)?->getFullUrl() ?? '';
+        $fishPhoto = count($mediaItems) > 0 ? $catch->getFirstMediaUrl('event_fish_images') : '';
 
-        $extraFishPhotos = $mediaItems->slice(1)->pluck('original_url')->implode(', ');
+        $extraFishPhotos = $mediaItems->slice(1) // skip first
+        ->map(fn($media) => $media->getUrl()) // use getUrl() to get actual URL
+        ->implode(', ');
 
         return [
             $catch->team->team_uid ?? '',

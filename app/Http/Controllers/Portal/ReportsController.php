@@ -222,7 +222,7 @@ class ReportsController extends Controller
                     ->where('user_id', $catch->angler_id)
                     ->first();
 
-                $photoUrl = $mediaItems->first()?->getUrl();
+                $photoUrl = $catch->getFirstMediaUrl('glory_photos');
 
                 $fishPhoto = $photoUrl
                     ? '<a href="' . e($photoUrl) . '" class="glightbox" data-gallery="team-' . $catch->team_id . '">'
@@ -236,7 +236,7 @@ class ReportsController extends Controller
 
                 if ($mediaItems->count() > 0) {
                     $extraItems = $mediaItems->slice(1);
-                    $measurePhotoUrl = $measurePhotos->first()?->getUrl();
+                    $measurePhotoUrl = $catch->getFirstMediaUrl('event_fish_images');
 
                     $extraPhoto .= '<a href="' . e($measurePhotoUrl) . '" class="glightbox" data-gallery="team-' . $catch->team_id . '">';
                     $extraPhoto .= '<img src="' . e($measurePhotoUrl) . '" class="img-thumbnail m-1" '
