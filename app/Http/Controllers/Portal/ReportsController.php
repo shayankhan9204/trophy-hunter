@@ -306,6 +306,32 @@ class ReportsController extends Controller
 
             foreach ($attendances as $index => $attendance) {
 
+               $formatDMS = function ($lat, $lng) {
+                if (!$lat || !$lng) return 'N/A';
+
+                // Latitude
+                $latDir = $lat < 0 ? 'S' : 'N';
+                $lat = abs($lat);
+                $latDeg = floor($lat);
+                $latMinFloat = ($lat - $latDeg) * 60;
+                $latMin = floor($latMinFloat);
+                $latSec = round(($latMinFloat - $latMin) * 60);
+
+                // Longitude
+                $lngDir = $lng < 0 ? 'W' : 'E';
+                $lng = abs($lng);
+                $lngDeg = floor($lng);
+                $lngMinFloat = ($lng - $lngDeg) * 60;
+                $lngMin = floor($lngMinFloat);
+                $lngSec = round(($lngMinFloat - $lngMin) * 60);
+
+                return sprintf(
+                    "%s%02d %02d %03d, %s%02d %02d %03d",
+                    $latDir, $latDeg, $latMin, $latSec,
+                    $lngDir, $lngDeg, $lngMin, $lngSec
+                );
+            };
+
                 $teamNumber = optional($attendance->team)->team_uid ?? 'N/A';
                 $teamName = optional($attendance->team)->name ?? 'N/A';
 
@@ -328,6 +354,16 @@ class ReportsController extends Controller
                     'check_time_out' => $attendance->time_out
                         ? Carbon::parse("$attendance->date $attendance->time_out")->format('g:i A')
                         : 'Check-out not recorded',
+
+                    'check_in_location' => $formatDMS(
+                        $attendance->time_in_latitude,
+                        $attendance->time_in_longitude
+                    ),
+
+                    'check_out_location' => $formatDMS(
+                        $attendance->time_out_latitude,
+                        $attendance->time_out_longitude
+                    ),
                 ]);
 
             }

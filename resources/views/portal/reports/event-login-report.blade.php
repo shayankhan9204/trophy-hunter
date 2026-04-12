@@ -80,6 +80,8 @@
                                             <th>Date</th>
                                             <th>Signed In Time</th>
                                             <th>Signed Out Time</th>
+                                            <th>Check In Coordinates</th>
+                                            <th>Check Out Coordinates</th>
                                         </tr>
                                         </thead>
                                     </table>
@@ -131,6 +133,9 @@
                         {data: 'date', name: 'date'},
                         {data: 'check_time_in', name: 'check_time_in'},
                         {data: 'check_time_out', name: 'check_time_out'},
+                            // ✅ NEW
+                        {data: 'check_in_location'},
+                        {data: 'check_out_location'},
                     ],
                     rowCallback: function (row, data) {
                         if (data.is_summary_row) {
