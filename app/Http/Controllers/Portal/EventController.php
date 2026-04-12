@@ -92,6 +92,8 @@ class EventController extends Controller
 //            'teams.*' => 'exists:teams,id',
             'species' => 'required|array',
             'species.*' => 'exists:species,id',
+            'species_size_validation' => 'nullable|array',
+            'species_size_validation.*' => 'nullable|in:1',
 
             'contact_name' => 'nullable|array',
             'contact_name.*' => 'nullable|string|max:255',
@@ -116,7 +118,7 @@ class EventController extends Controller
                 'name' => $request->name,
                 'location' => $request->location,
                 'fish_bag_size' => $request->fish_bag_size,
-                'minimum_release_size' => $request->minimum_release_size,
+                // 'minimum_release_size' => $request->minimum_release_size,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
             ]);
 
@@ -126,8 +128,13 @@ class EventController extends Controller
 //            }
 
             if ($request->has('species')) {
-                $event->species()->sync($request->species);
-
+                $syncData = [];
+                foreach ($request->species as $specieId) {
+                    $syncData[$specieId] = [
+                        'is_size_validation_enabled' => isset($request->species_size_validation[$specieId]) ? 1 : 0,
+                    ];
+                }
+                $event->species()->sync($syncData);
             }
 
             if ($request->date) {
@@ -189,7 +196,7 @@ class EventController extends Controller
     {
 //        $teams = Team::get();
         $event = Event::where('id', $id)
-            ->with('contacts', 'notifications', 'rules', 'teams', 'dates')->first();
+            ->with('contacts', 'notifications', 'rules', 'teams', 'dates', 'species')->first();
         $species = Specie::get();
 
         return view('portal.events.edit', compact( 'event', 'species'));
@@ -204,6 +211,9 @@ class EventController extends Controller
 //            'fish_bag_size' => 'required',
 //            'teams' => 'required|array',
             'species' => 'required|array',
+            'species.*' => 'exists:species,id',
+            'species_size_validation' => 'nullable|array',
+            'species_size_validation.*' => 'nullable|in:1',
             'start_time' => 'required|array',
             'end_time' => 'required|array',
         ]);
@@ -219,14 +229,20 @@ class EventController extends Controller
                 'date' => $request->date,
                 'location' => $request->location,
                 'fish_bag_size' => $request->fish_bag_size ?? $event->fish_bag_size,
-                'minimum_release_size' => $request->minimum_release_size ?? $event->minimum_release_size,
+                // 'minimum_release_size' => $request->minimum_release_size ?? $event->minimum_release_size,
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
             ]);
 
 //            $event->teams()->sync($request->teams ?? []);
-            $event->species()->sync($request->species ?? []);
+            $syncData = [];
+            foreach ($request->species ?? [] as $specieId) {
+                $syncData[$specieId] = [
+                    'is_size_validation_enabled' => isset($request->species_size_validation[$specieId]) ? 1 : 0,
+                ];
+            }
+            $event->species()->sync($syncData);
 
             if ($request->filled('removed_media_ids')) {
                 $ids = explode(',', $request->removed_media_ids);
@@ -335,6 +351,8 @@ class EventController extends Controller
                 return [
                     'id' => $specie->id,
                     'name' => $specie->name,
+                    'minimum_video_size' => $specie->minimum_video_size,
+                    'is_size_validation_enabled' => (int) ($specie->pivot->is_size_validation_enabled ?? 1),
                 ];
             }),
         ]);

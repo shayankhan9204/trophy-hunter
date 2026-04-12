@@ -65,7 +65,7 @@
                                             <span class="text-danger">{{ $message }}</span>
                                             @enderror
                                         </div>
-                                        <div class="col-md-6">
+                                        <!-- <div class="col-md-6">
                                             <div class="form-group">
                                                 <label>Minimum size for release video</label>
                                                 <input class="form-control" required type="number" name="minimum_release_size" style="height: 50px !important;"
@@ -74,7 +74,7 @@
                                             @error('minimum_release_size')
                                             <span class="text-danger">{{ $message }}</span>
                                             @enderror
-                                        </div>
+                                        </div> -->
 
 {{--                                        <div class="col-md-6">--}}
 {{--                                            <div class="form-group">--}}
@@ -258,20 +258,32 @@
                                     </div>
 
                                     <h4>Event Species</h4>
+                                    @php
+                                        $selectedSpeciesEdit = collect(old('species', $event->species->pluck('id')->toArray()))->map(fn($id) => (int) $id)->toArray();
+                                        $speciesValidationFromEvent = $event->species->mapWithKeys(function ($specie) {
+                                            return [$specie->id => (int) ($specie->pivot->is_size_validation_enabled ?? 1)];
+                                        })->toArray();
+                                        $speciesSizeValidationEditOld = old('species_size_validation', $speciesValidationFromEvent);
+                                    @endphp
                                     <div class="row">
                                         <div class="col-md-12">
                                             <div class="form-group">
                                                 <label>Species</label>
-                                                <select name="species[]" id="angler_select" class="form-control select2"
+                                                <select name="species[]" id="species_select_edit" class="form-control select2"
                                                         multiple="multiple">
                                                     @foreach($species as $specie)
-                                                        <option {{ $event->species->contains('id', $specie->id) ? 'selected' : '' }}
+                                                        <option {{ in_array((int) $specie->id, $selectedSpeciesEdit, true) ? 'selected' : '' }}
                                                                 value="{{ $specie->id }}">
                                                             {{ $specie->name }}
                                                         </option>
                                                     @endforeach
                                                 </select>
                                             </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div id="species-size-validation-container-edit" class="mb-3"></div>
                                         </div>
                                     </div>
 
@@ -493,6 +505,43 @@
 
 @section('script')
     <script>
+        const allSpeciesForEventEdit = @json($species->map(function ($specie) {
+            return ['id' => $specie->id, 'name' => $specie->name];
+        })->values());
+        const oldSpeciesValidationEdit = @json($speciesSizeValidationEditOld);
+
+        function renderSpeciesValidationOptionsEdit() {
+            const selectedSpeciesIds = ($('#species_select_edit').val() || []).map(String);
+            const container = $('#species-size-validation-container-edit');
+
+            if (selectedSpeciesIds.length === 0) {
+                container.html('');
+                return;
+            }
+
+            let html = '<label class="d-block">Enable Size Validation Per Selected Species</label>';
+
+            selectedSpeciesIds.forEach(function (selectedId) {
+                const specie = allSpeciesForEventEdit.find(function (item) {
+                    return String(item.id) === String(selectedId);
+                });
+
+                if (!specie) {
+                    return;
+                }
+
+                const isChecked = oldSpeciesValidationEdit && oldSpeciesValidationEdit[selectedId];
+
+                html += '<div class="form-check mb-2">';
+                html += '<input class="form-check-input" type="checkbox" value="1" id="species-size-validation-edit-' + selectedId + '" name="species_size_validation[' + selectedId + ']" ' + (isChecked ? 'checked' : '') + '>';
+                html += '<label class="form-check-label" for="species-size-validation-edit-' + selectedId + '">' + specie.name + '</label>';
+                html += '</div>';
+            });
+
+            container.html(html);
+        }
+    </script>
+    <script>
         function removeMedia(mediaId) {
             document.getElementById('media-' + mediaId).remove();
 
@@ -560,6 +609,11 @@
 
     <script>
         $(document).ready(function () {
+            renderSpeciesValidationOptionsEdit();
+
+            $('#species_select_edit').on('change', function () {
+                renderSpeciesValidationOptionsEdit();
+            });
 
             $("#dates-container").on("click", "#add-date", function () {
                 var clone = $(".dates-box:first").clone(true);

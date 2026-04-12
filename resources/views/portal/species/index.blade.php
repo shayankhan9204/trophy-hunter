@@ -43,6 +43,7 @@
                                                 <th>Formula</th>
                                                 <th>Validation Rule</th>
                                                 <th>Minimum Validation Rule</th>
+                                                <th>Min Length Video Validation</th>
                                                 <th>Action</th>
                                             </tr>
                                         </thead>
@@ -85,6 +86,10 @@
                 {
                     data: 'min_validation_rule',
                     name: 'min_validation_rule'
+                },
+                {
+                    data: 'minimum_video_size',
+                    name: 'minimum_video_size'
                 },
                 {
                     data: 'action',

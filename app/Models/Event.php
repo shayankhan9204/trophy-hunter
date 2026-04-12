@@ -61,7 +61,8 @@ class Event extends Model implements HasMedia
 
     public function species()
     {
-        return $this->belongsToMany(Specie::class, 'event_species');
+        return $this->belongsToMany(Specie::class, 'event_species')
+            ->withPivot('is_size_validation_enabled');
     }
 
 }

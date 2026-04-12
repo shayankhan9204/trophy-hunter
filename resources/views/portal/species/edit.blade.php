@@ -73,6 +73,16 @@
                                         <span class="text-danger">{{ $message }}</span>
                                         @enderror
 
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label>Min Length Video Validation</label>
+                                                <input class="form-control" required type="number" min="0" name="minimum_video_size" value="{{ old('minimum_video_size', $specie->minimum_video_size) }}">
+                                            </div>
+                                        </div>
+                                        @error('minimum_video_size')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+
                                     </div>
 
                                     <button class="btn btn-gradient-primary" type="submit">Submit</button>

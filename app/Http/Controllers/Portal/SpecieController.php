@@ -17,10 +17,14 @@ class SpecieController extends Controller
 
             return DataTables::of($species)
                 ->addColumn('validation_rule', function ($row) {
-                    return $row->validation_rule ?: 'N/A';
+                    return $row->validation_rule ?: '-';
                 })
                 ->addColumn('min_validation_rule', function ($row) {
-                    return $row->min_validation_rule ?: 'N/A';
+                    return $row->min_validation_rule ?: '-';
+                })
+                
+                ->addColumn('min_validation_rule', function ($row) {
+                    return $row->minimum_video_size ?: '-';
                 })
                 ->addColumn('action', function ($row) {
                     $editUrl = route('specie.edit', ['id' => $row->id]);
@@ -55,6 +59,7 @@ class SpecieController extends Controller
                 'formula' => 'required',
                 'validation_rule' => 'nullable',
                 'min_validation_rule' => 'nullable',
+                'minimum_video_size' => 'required|numeric|min:0',
             ]);
 
             DB::beginTransaction();
@@ -82,6 +87,7 @@ class SpecieController extends Controller
         $request->validate([
             'name' => 'required|string',
             'formula' => 'required',
+            'minimum_video_size' => 'required|numeric|min:0',
         ]);
 
         $specie = Specie::findOrFail($request->id);
@@ -91,6 +97,7 @@ class SpecieController extends Controller
             'formula' => $request->formula,
             'validation_rule' => $request->validation_rule ?? null,
             'min_validation_rule' => $request->min_validation_rule ?? null,
+            'minimum_video_size' => $request->minimum_video_size,
         ]);
 
         return redirect()->back()->with('success', 'Specie updated successfully!');

@@ -13,7 +13,8 @@ class Specie extends Model
         'name',
         'formula',
         'validation_rule',
-        'min_validation_rule'
+        'min_validation_rule',
+        'minimum_video_size',
     ];
 
     public function events()
