@@ -42,6 +42,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/event/edit/catch/{id}', [EventController::class, 'editCatch'])->name('event.edit.catch');
     Route::post('/event/catch/update', [EventController::class, 'updateCatchPoints'])->name('event.catch.update');
     Route::post('/event/catch/store', [EventController::class, 'storeCatch'])->name('event.catch.store');
+    Route::post('/event/catch/import', [EventController::class, 'importCatchData'])->name('event.catch.import');
     Route::get('/event/catch/anglers', [EventController::class, 'getAnglersForEventTeam'])->name('event.catch.anglers');
 
     Route::get('/specie', [SpecieController::class, 'index'])->name('specie.index');

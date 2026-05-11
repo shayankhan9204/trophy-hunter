@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class EventController extends Controller
 {
@@ -514,6 +515,232 @@ class EventController extends Controller
         EventCatch::whereIn('id', $ids)->delete();
 
         return response()->json(['message' => 'Selected catches deleted successfully.']);
+    }
+
+    public function importCatchData(Request $request)
+    {
+        $request->validate([
+            'event_id' => 'required|exists:events,id',
+            'catch_file' => 'required|file|mimes:xlsx,xls,csv',
+        ]);
+
+        if (!$request->hasFile('catch_file')) {
+            return redirect()->back()->with('error', 'Please upload a valid xlsx/xls/csv file.');
+        }
+
+        $event = Event::with('species')->findOrFail($request->event_id);
+
+        if ($event->species->isEmpty()) {
+            return redirect()->back()->with('error', 'No species are attached to this event. Please attach at least one species first.');
+        }
+
+        $normalize = function ($value): string {
+            return Str::of((string) $value)
+                ->lower()
+                ->replaceMatches('/[^a-z0-9]+/', '_')
+                ->trim('_')
+                ->value();
+        };
+
+        $toNumeric = function ($value) {
+            if ($value === null || $value === '') {
+                return null;
+            }
+
+            $sanitized = preg_replace('/[^0-9.\-]/', '', (string) $value);
+            if ($sanitized === '' || !is_numeric($sanitized)) {
+                return null;
+            }
+
+            return (float) $sanitized;
+        };
+        
+        $uploadedFile = $request->file('catch_file');
+        if (!$uploadedFile || !$uploadedFile->isValid()) {
+            return redirect()->back()->with('error', 'Invalid uploaded file. Please choose the file again.');
+        }
+
+        $tmpImportFile = null;
+        try {
+            $sourcePath = $uploadedFile->getPathname();
+            if (empty($sourcePath) || !file_exists($sourcePath)) {
+                return redirect()->back()->with('error', 'Uploaded temp file is not accessible.');
+            }
+
+            $tmpDir = storage_path('app/tmp-imports');
+            if (!is_dir($tmpDir)) {
+                mkdir($tmpDir, 0777, true);
+            }
+
+            $ext = strtolower($uploadedFile->getClientOriginalExtension() ?: 'xlsx');
+            $tmpImportFile = $tmpDir . DIRECTORY_SEPARATOR . Str::uuid() . '.' . $ext;
+
+            if (!copy($sourcePath, $tmpImportFile)) {
+                return redirect()->back()->with('error', 'Unable to copy uploaded file for import.');
+            }
+        } catch (\Exception $exception) {
+            return redirect()->back()->with('error', 'Unable to prepare uploaded file: ' . $exception->getMessage());
+        }
+
+        $importSource = $tmpImportFile;
+        if (empty($importSource) || !file_exists($importSource)) {
+            if ($tmpImportFile && file_exists($tmpImportFile)) {
+                @unlink($tmpImportFile);
+            }
+            return redirect()->back()->with('error', 'Unable to prepare uploaded file for import. Please try again.');
+        }
+
+        try {
+            $sheets = Excel::toArray([], $importSource);
+        } finally {
+            if ($tmpImportFile && file_exists($tmpImportFile)) {
+                @unlink($tmpImportFile);
+            }
+        }
+        $rows = $sheets[0] ?? [];
+
+        if (count($rows) < 2) {
+            return redirect()->back()->with('error', 'The uploaded file is empty or does not contain data rows.');
+        }
+
+        $headers = array_map($normalize, $rows[0]);
+        $headerMap = array_flip($headers);
+
+        $findHeader = function (array $candidates) use ($headerMap) {
+            foreach ($candidates as $candidate) {
+                if (array_key_exists($candidate, $headerMap)) {
+                    return $headerMap[$candidate];
+                }
+            }
+            return null;
+        };
+
+        $teamIndex = $findHeader(['team_name', 'team', 'teamname','Team Name']);
+        $anglerIndex = $findHeader(['angler_name', 'angler', 'anglername' , 'Angler Name']);
+        $forkLengthIndex = $findHeader(['fork_length_x_x', 'fork_length', 'forklength', 'fork_length_mm' , 'Fork Length']);
+        $pointsIndex = $findHeader(['points', 'point', 'Points']);
+        $speciesIndex = $findHeader(['species', 'specie', 'species_name', 'specie_name']);
+        $catchTimeIndex = $findHeader(['catch_time', 'catch_timestamp', 'timestamp', 'date_time', 'datetime']);
+
+        if ($teamIndex === null || $anglerIndex === null || $forkLengthIndex === null) {
+            return redirect()->back()->with(
+                'error',
+                'Missing required columns. Required: Team Name, Angler Name, Fork Length. Optional: Points, Species, Catch Time.'
+            );
+        }
+
+        $teamsInEvent = Team::whereHas('events', function ($q) use ($event) {
+            $q->where('event_id', $event->id);
+        })->get();
+
+        $teamMap = [];
+        foreach ($teamsInEvent as $team) {
+            $teamMap[$normalize($team->name)] = $team;
+        }
+
+        $anglerRows = DB::table('event_team_user')
+            ->join('users', 'event_team_user.user_id', '=', 'users.id')
+            ->where('event_team_user.event_id', $event->id)
+            ->whereNull('event_team_user.deleted_at')
+            ->select('event_team_user.team_id', 'users.id as user_id', 'users.name as user_name')
+            ->get();
+
+        $anglerMap = [];
+        foreach ($anglerRows as $anglerRow) {
+            $anglerMap[$anglerRow->team_id][$normalize($anglerRow->user_name)] = $anglerRow->user_id;
+        }
+
+        $eventSpeciesMap = [];
+        foreach ($event->species as $specie) {
+            $eventSpeciesMap[$normalize($specie->name)] = $specie->id;
+        }
+        $defaultSpecieId = $event->species->first()->id;
+
+        $imported = 0;
+        $skipped = 0;
+        $errors = [];
+
+        DB::beginTransaction();
+        try {
+            foreach (array_slice($rows, 1) as $line => $row) {
+                $rowNumber = $line + 2; // +1 for zero-index and +1 for header
+
+                $teamName = trim((string) ($row[$teamIndex] ?? ''));
+                $anglerName = trim((string) ($row[$anglerIndex] ?? ''));
+                $forkLengthRaw = $row[$forkLengthIndex] ?? null;
+                $pointsRaw = $pointsIndex !== null ? ($row[$pointsIndex] ?? null) : null;
+                $speciesRaw = $speciesIndex !== null ? trim((string) ($row[$speciesIndex] ?? '')) : '';
+                $catchTimeRaw = $catchTimeIndex !== null ? trim((string) ($row[$catchTimeIndex] ?? '')) : '';
+
+                if ($teamName === '' && $anglerName === '' && ($forkLengthRaw === null || $forkLengthRaw === '')) {
+                    continue;
+                }
+
+                $team = $teamMap[$normalize($teamName)] ?? null;
+                if (!$team) {
+                    $skipped++;
+                    $errors[] = "Row {$rowNumber}: Team '{$teamName}' is not attached to this event.";
+                    continue;
+                }
+
+                $anglerId = $anglerMap[$team->id][$normalize($anglerName)] ?? null;
+                if (!$anglerId) {
+                    $skipped++;
+                    $errors[] = "Row {$rowNumber}: Angler '{$anglerName}' not found in team '{$team->name}' for this event.";
+                    continue;
+                }
+
+                $forkLength = $toNumeric($forkLengthRaw);
+                if ($forkLength === null) {
+                    $skipped++;
+                    $errors[] = "Row {$rowNumber}: Invalid fork length value.";
+                    continue;
+                }
+
+                $points = $toNumeric($pointsRaw);
+
+                $specieId = $defaultSpecieId;
+                if ($speciesRaw !== '') {
+                    $specieId = $eventSpeciesMap[$normalize($speciesRaw)] ?? null;
+                    if (!$specieId) {
+                        $skipped++;
+                        $errors[] = "Row {$rowNumber}: Species '{$speciesRaw}' is not available in this event.";
+                        continue;
+                    }
+                }
+
+                EventCatch::create([
+                    'event_id' => $event->id,
+                    'team_id' => $team->id,
+                    'angler_id' => $anglerId,
+                    'specie_id' => $specieId,
+                    'fork_length' => $forkLength,
+                    'points' => $points,
+                    'catch_timestamp' => $catchTimeRaw !== '' ? $catchTimeRaw : now()->toDateTimeString(),
+                ]);
+
+                $imported++;
+            }
+
+            DB::commit();
+        } catch (\Exception $exception) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Import failed: ' . $exception->getMessage());
+        }
+
+        if (!empty($errors)) {
+            $previewErrors = implode(' | ', array_slice($errors, 0, 5));
+            if (count($errors) > 5) {
+                $previewErrors .= ' | ...';
+            }
+
+            return redirect()->back()->with(
+                'success',
+                "Import completed. Imported {$imported} row(s), skipped {$skipped} row(s). {$previewErrors}"
+            );
+        }
+
+        return redirect()->back()->with('success', "Import completed. Imported {$imported} row(s), skipped {$skipped} row(s).");
     }
 
     /**

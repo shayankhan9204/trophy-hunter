@@ -99,6 +99,27 @@
 
                                 <hr class="my-4">
 
+                                <h4 class="mb-3">Import Catch Data (XLSX/CSV)</h4>
+                                <p class="mb-2">
+                                    Required columns: <strong>Team Name</strong>, <strong>Angler Name</strong>, <strong>Fork Length (X.X)</strong>.
+                                    Optional: <strong>Points</strong>, <strong>Species</strong>, <strong>Catch Time</strong>.
+                                </p>
+                                <form action="{{ route('event.catch.import') }}" method="POST" enctype="multipart/form-data" class="mb-4">
+                                    @csrf
+                                    <input type="hidden" name="event_id" value="{{ $event->id }}">
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="form-group">
+                                                <label for="catch_file">Catch file</label>
+                                                <input type="file" class="form-control" id="catch_file" name="catch_file" accept=".xlsx,.xls,.csv" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-info">Import Catch Data</button>
+                                </form>
+
+                                <hr class="my-4">
+
                                 <h4 class="mb-3">Add New Catch</h4>
                                 <form action="{{ route('event.catch.store') }}" method="POST" id="add-catch-form">
                                     @csrf
