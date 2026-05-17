@@ -76,8 +76,13 @@
                                             <th>Event</th>
                                             <th>Team Number</th>
                                             <th>Team Name</th>
-                                            <th>Fork length</th>
+                                            <th>Angler Number</th>
+                                            <th>Angler Name</th>
+                                            <th>Specie</th>
+                                            <th>Fork Length</th>
                                             <th>Points</th>
+                                            <th>Measure Photo</th>
+                                            <th>Release Video</th>
                                         </tr>
                                         </thead>
                                     </table>
@@ -141,9 +146,21 @@
                         { data: 'event', name: 'event' },
                         { data: 'team_number', name: 'team_number' },
                         { data: 'team_name', name: 'team_name' },
+                        { data: 'angler_number', name: 'angler_number' },
+                        { data: 'angler_name', name: 'angler_name' },
+                        { data: 'specie', name: 'specie' },
                         { data: 'fork_length', name: 'fork_length' },
-                        { data: 'points', name: 'points' }
+                        { data: 'points', name: 'points' },
+                        { data: 'fish_photo', name: 'fish_photo' },
+                        { data: 'release_video', name: 'release_video' },
+                        { data: 'is_summary_row', visible: false }
                     ],
+                    rowCallback: function (row, data) {
+                        if (data.is_summary_row) {
+                            $(row).css('font-weight', 'bold');
+                            $(row).addClass('table-success');
+                        }
+                    },
                     dom: '<"row"<"col-sm-6"l><"col-sm-6"B>>frtip',
                     buttons: ['copy', 'excel', 'pdf', 'csv', 'colvis'],
                     searching: false,
@@ -151,6 +168,13 @@
                     language: {
                         emptyTable: 'Sorry! No catch data found for these selections'
                     }
+                });
+
+                dt.on('draw.dt', function () {
+                    if (typeof lightbox !== 'undefined' && lightbox.destroy) {
+                        lightbox.destroy();
+                    }
+                    lightbox = GLightbox({ selector: '.glightbox' });
                 });
             });
 

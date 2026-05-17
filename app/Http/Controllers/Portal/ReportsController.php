@@ -520,9 +520,8 @@ class ReportsController extends Controller
 
     /**
      * Multi Event Bag Report:
-     * Per team per selected event: sum of top N fish by points (fork tie-break). One row per
-     * positive bag. Rows are sorted globally by that bag's points (high to low); Rank is 1..n
-     * on that leaderboard (not grouped by team).
+     * Per team: individual rows for each top-N fish per selected event (up to max fish per
+     * event), then a summary total row. Teams are ranked by combined bag points (high to low).
      */
     public function multiEventRankingReport(Request $request)
     {
@@ -551,7 +550,9 @@ class ReportsController extends Controller
 
             $finalRows = $this->buildMultiEventBagReportRows($selectedEventIds, $specieId, $maxFishPerEvent);
 
-            return DataTables::of($finalRows)->make(true);
+            return DataTables::of($finalRows)
+                ->rawColumns(['angler_name', 'team_number', 'team_name', 'points', 'fork_length', 'fish_photo', 'release_video'])
+                ->make(true);
         }
 
         $events = Event::orderByDesc('id')->get();
@@ -576,8 +577,7 @@ class ReportsController extends Controller
      */
     private function buildMultiEventBagReportRows(array $selectedEventIds, int $specieId, int $maxFishPerEvent): Collection
     {
-        $events = Event::orderByDesc('id')->get();
-        $eventsById = $events->keyBy('id');
+        $eventsById = Event::whereIn('id', $selectedEventIds)->get()->keyBy('id');
 
         $participations = DB::table('event_team_user')
             ->whereIn('event_id', $selectedEventIds)
@@ -597,38 +597,18 @@ class ReportsController extends Controller
 
         $teamsById = Team::whereIn('id', $participatedTeamIds)->get()->keyBy('id');
 
-        $candidateCatches = DB::query()->fromSub(function ($q) use ($selectedEventIds, $participatedTeamIds, $specieId) {
-            $q->from('event_catches')
-                ->whereIn('event_id', $selectedEventIds)
-                ->whereIn('team_id', $participatedTeamIds)
-                ->where('specie_id', $specieId)
-                ->select([
-                    'id',
-                    'event_id',
-                    'team_id',
-                    'fork_length',
-                    'points',
-                    DB::raw('ROW_NUMBER() OVER (PARTITION BY team_id, event_id ORDER BY CAST(points AS DECIMAL(12,4)) DESC, CAST(fork_length AS UNSIGNED) DESC) as rn'),
-                ]);
-        }, 't')
-            ->where('rn', '<=', $maxFishPerEvent)
-            ->orderBy('team_id')
-            ->orderBy('event_id')
-            ->orderBy('rn')
+        $allCatches = EventCatch::with(['angler', 'team', 'specie'])
+            ->whereIn('event_id', $selectedEventIds)
+            ->whereIn('team_id', $participatedTeamIds)
+            ->where('specie_id', $specieId)
             ->get();
 
-        $catchesByTeamEvent = $candidateCatches->groupBy(['team_id', 'event_id']);
-
-        $rows = [];
+        $teamTotals = [];
+        $teamCatchesByEvent = [];
 
         foreach ($participatedTeamIds as $teamId) {
-            $team = $teamsById->get($teamId);
-            if (!$team) {
-                continue;
-            }
-
-            $teamNumber = $team->team_uid ?? '-';
-            $teamName = $team->name ?? '-';
+            $teamCatchesByEvent[$teamId] = [];
+            $teamTotals[$teamId] = 0;
             $teamEventIdSet = $participatedEventIdsByTeam->get($teamId, []);
 
             foreach ($selectedEventIds as $eventId) {
@@ -636,48 +616,122 @@ class ReportsController extends Controller
                     continue;
                 }
 
-                $selected = $catchesByTeamEvent->get($teamId, collect())->get($eventId, collect());
-                $eventBagPoints = (float) $selected->sum('points');
-                if ($eventBagPoints <= 0) {
-                    continue;
-                }
+                $eventCatches = $allCatches
+                    ->where('team_id', $teamId)
+                    ->where('event_id', (int) $eventId)
+                    ->sort(function ($a, $b) {
+                        $pointsCmp = ((float) $b->points) <=> ((float) $a->points);
+                        if ($pointsCmp !== 0) {
+                            return $pointsCmp;
+                        }
 
-                $eventBagForkLength = (float) $selected->sum(function ($row) {
-                    return (float) ($row->fork_length ?? 0);
-                });
-                $eventName = $eventsById->get($eventId)->name ?? 'Unknown';
+                        return ((int) $b->fork_length) <=> ((int) $a->fork_length);
+                    })
+                    ->values()
+                    ->take($maxFishPerEvent);
 
-                $rows[] = [
-                    'event' => $eventName,
-                    'team_number' => $teamNumber,
-                    'team_name' => $teamName,
-                    'fork_length' => $eventBagForkLength,
-                    'points' => $eventBagPoints,
-                    '_sort_team' => (string) $teamNumber,
-                ];
+                $teamCatchesByEvent[$teamId][$eventId] = $eventCatches;
+                $teamTotals[$teamId] += (float) $eventCatches->sum('points');
             }
         }
 
-        usort($rows, function ($a, $b) {
-            $pointsCmp = ($b['points'] <=> $a['points']);
-            if ($pointsCmp !== 0) {
-                return $pointsCmp;
-            }
+        $sortedTeamIds = $participatedTeamIds
+            ->filter(fn ($teamId) => ($teamTotals[$teamId] ?? 0) > 0)
+            ->sort(function ($teamIdA, $teamIdB) use ($teamTotals, $teamsById) {
+                $pointsCmp = ($teamTotals[$teamIdB] ?? 0) <=> ($teamTotals[$teamIdA] ?? 0);
+                if ($pointsCmp !== 0) {
+                    return $pointsCmp;
+                }
 
-            $teamCmp = strcmp($a['_sort_team'], $b['_sort_team']);
-            if ($teamCmp !== 0) {
-                return $teamCmp;
-            }
+                $teamNumberA = (string) ($teamsById->get($teamIdA)->team_uid ?? '');
+                $teamNumberB = (string) ($teamsById->get($teamIdB)->team_uid ?? '');
 
-            return strcmp((string) $a['event'], (string) $b['event']);
-        });
+                return strcmp($teamNumberA, $teamNumberB);
+            })
+            ->values();
 
+        $teamRanks = $sortedTeamIds->flip()->map(fn ($index) => $index + 1);
         $finalRows = collect();
-        $rank = 1;
-        foreach ($rows as $row) {
-            unset($row['_sort_team']);
-            $row['rank'] = $rank++;
-            $finalRows->push($row);
+
+        foreach ($sortedTeamIds as $teamId) {
+            $team = $teamsById->get($teamId);
+            if (!$team) {
+                continue;
+            }
+
+            $rank = $teamRanks[$teamId] ?? 'N/A';
+            $teamNumber = $team->team_uid ?? 'N/A';
+            $teamName = $team->name ?? 'N/A';
+            $teamEventIdSet = $participatedEventIdsByTeam->get($teamId, []);
+            $totalPoints = 0;
+
+            foreach ($selectedEventIds as $eventId) {
+                if (!in_array((int) $eventId, array_map('intval', $teamEventIdSet), true)) {
+                    continue;
+                }
+
+                $eventCatches = $teamCatchesByEvent[$teamId][$eventId] ?? collect();
+                $eventName = $eventsById->get($eventId)->name ?? 'Unknown';
+
+                foreach ($eventCatches as $catch) {
+                    $etu = DB::table('event_team_user')
+                        ->where('event_id', $eventId)
+                        ->where('team_id', $teamId)
+                        ->where('user_id', $catch->angler_id)
+                        ->first();
+
+                    $photoUrl = $catch->getFirstMediaUrl('event_fish_images');
+                    $fishPhoto = $photoUrl
+                        ? '<a href="' . e($photoUrl) . '" class="glightbox" data-gallery="team-' . $teamId . '-event-' . $eventId . '">'
+                        . '<img src="' . e($photoUrl) . '" class="img-thumbnail" '
+                        . 'style="width:200px;height:130px;object-fit:contain;cursor:pointer;" />'
+                        . '</a>'
+                        : 'No Photo';
+
+                    $videoUrl = $catch->getFirstMediaUrl('release_video');
+                    $releaseVideo = $videoUrl
+                        ? '<a href="' . e($videoUrl) . '" class="glightbox">View Video</a>'
+                        : 'No Video';
+
+                    $finalRows->push([
+                        'rank' => $rank,
+                        'event' => $eventName,
+                        'team_id' => $teamId,
+                        'team_number' => $teamNumber,
+                        'team_name' => $teamName,
+                        'angler_number' => $etu->angular_uid ?? 'N/A',
+                        'angler_name' => $etu->angular_name ?? $catch->angler->name ?? 'N/A',
+                        'specie' => $catch->specie->name ?? 'N/A',
+                        'fork_length' => $catch->fork_length,
+                        'points' => $catch->points,
+                        'fish_photo' => $fishPhoto,
+                        'release_video' => $releaseVideo,
+                        'is_summary_row' => false,
+                    ]);
+
+                    $totalPoints += (float) $catch->points;
+                }
+            }
+
+            if ($totalPoints <= 0) {
+                continue;
+            }
+
+            $finalRows->push([
+                'rank' => '',
+                'event' => '',
+                'team_id' => $teamId,
+                'team_number' => '<strong>' . e($teamNumber) . '</strong>',
+                'team_name' => '<strong>' . e($teamName) . '</strong>',
+                'angler_number' => '',
+                'angler_name' => '',
+                'specie' => '',
+                'fork_length' => '<strong>Total Points</strong>',
+                'points' => '<strong>' . $totalPoints . '</strong>',
+                'fish_photo' => '',
+                'release_video' => '',
+                'is_summary_row' => true,
+            ]);
         }
 
         return $finalRows;
