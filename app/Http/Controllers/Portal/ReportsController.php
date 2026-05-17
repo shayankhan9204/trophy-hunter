@@ -11,7 +11,9 @@ use App\Models\Team;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 
 class ReportsController extends Controller
@@ -518,25 +520,40 @@ class ReportsController extends Controller
 
     /**
      * Multi Event Bag Report:
-     * Select multiple events, one species, and max number of fish per event per team.
-     *
-     * Fish selection rules:
-     * - Only include fish of selected species
-     * - For each selected event, for each team that participated in that event:
-     *   select highest-point fish first (points DESC) and include up to N
-     *   (tie-breaker: fork_length DESC)
-     *
-     * Scoring & ranking:
-     * - Combine selected fish across selected events per team
-     * - Total points = sum(points) of selected fish
-     * - Rank teams by total points DESC
-     *
-     * Edge cases:
-     * - Teams missing some events are still included
-     * - Only fish from events where the team participated are counted
+     * Per team per selected event: sum of top N fish by points (fork tie-break). One row per
+     * positive bag. Rows are sorted globally by that bag's points (high to low); Rank is 1..n
+     * on that leaderboard (not grouped by team).
      */
     public function multiEventRankingReport(Request $request)
     {
+        if ($request->ajax()) {
+            $selectedEventIds = array_values(array_filter((array) $request->get('event_ids', [])));
+            $specieId = (int) $request->get('specie_id', 0);
+            $maxFishPerEvent = (int) $request->get('max_fish_per_event', 1);
+
+            $validator = Validator::make(
+                [
+                    'event_ids' => $selectedEventIds,
+                    'specie_id' => $specieId,
+                    'max_fish_per_event' => $maxFishPerEvent,
+                ],
+                [
+                    'event_ids' => 'required|array|min:1',
+                    'event_ids.*' => 'integer|exists:events,id',
+                    'specie_id' => 'required|integer|exists:species,id',
+                    'max_fish_per_event' => 'required|integer|min:1',
+                ]
+            );
+
+            if ($validator->fails()) {
+                return DataTables::of(collect())->make(true);
+            }
+
+            $finalRows = $this->buildMultiEventBagReportRows($selectedEventIds, $specieId, $maxFishPerEvent);
+
+            return DataTables::of($finalRows)->make(true);
+        }
+
         $events = Event::orderByDesc('id')->get();
         $species = Specie::orderBy('name')->get();
 
@@ -544,179 +561,125 @@ class ReportsController extends Controller
         $specieId = $request->get('specie_id');
         $maxFishPerEvent = (int) $request->get('max_fish_per_event', 1);
 
-        $teamRankings = collect();
-        $eventSections = collect();
-
-        if (!empty($selectedEventIds) && $specieId && $maxFishPerEvent > 0) {
-            $request->validate([
-                'event_ids' => 'required|array|min:1',
-                'event_ids.*' => 'integer|exists:events,id',
-                'specie_id' => 'required|integer|exists:species,id',
-                'max_fish_per_event' => 'required|integer|min:1',
-            ]);
-
-            // Participation (event_id + team_id) defines which team "participated" in each event
-            $participations = DB::table('event_team_user')
-                ->whereIn('event_id', $selectedEventIds)
-                ->whereNull('deleted_at')
-                ->select('event_id', 'team_id')
-                ->distinct()
-                ->get();
-
-            $participatedTeamIds = $participations->pluck('team_id')->unique()->values();
-            $participatedEventIdsByTeam = $participations
-                ->groupBy('team_id')
-                ->map(fn ($rows) => $rows->pluck('event_id')->unique()->values()->all());
-            $participatedTeamIdsByEvent = $participations
-                ->groupBy('event_id')
-                ->map(fn ($rows) => $rows->pluck('team_id')->unique()->values()->all());
-
-            $teamsById = Team::whereIn('id', $participatedTeamIds)->get()->keyBy('id');
-            $eventsById = $events->keyBy('id');
-
-            // Fetch top N catches per (team,event) using window function for speed & correctness
-            $candidateCatches = DB::query()->fromSub(function ($q) use ($selectedEventIds, $participatedTeamIds, $specieId) {
-                $q->from('event_catches')
-                    ->whereIn('event_id', $selectedEventIds)
-                    ->whereIn('team_id', $participatedTeamIds)
-                    ->where('specie_id', $specieId)
-                    ->select([
-                        'id',
-                        'event_id',
-                        'team_id',
-                        'fork_length',
-                        'points',
-                        DB::raw('ROW_NUMBER() OVER (PARTITION BY team_id, event_id ORDER BY CAST(points AS DECIMAL(12,4)) DESC, CAST(fork_length AS UNSIGNED) DESC) as rn')
-                    ]);
-            }, 't')
-                ->where('rn', '<=', $maxFishPerEvent)
-                ->orderBy('team_id')
-                ->orderBy('event_id')
-                ->orderBy('rn')
-                ->get();
-
-            // Group catches by team_id then event_id (already limited to top N)
-            $catchesByTeamEvent = $candidateCatches
-                ->groupBy(['team_id', 'event_id']);
-
-            $teamTotals = [];
-
-            foreach ($participatedTeamIds as $teamId) {
-                $team = $teamsById->get($teamId);
-                if (!$team) {
-                    continue;
-                }
-
-                $totalPoints = 0;
-                $fishDetails = [];
-
-                $teamEventIds = $participatedEventIdsByTeam->get($teamId, []);
-                foreach ($teamEventIds as $eventId) {
-                    // Only consider events where this team participated
-                    $selected = $catchesByTeamEvent[$teamId][$eventId] ?? collect();
-
-                    $eventPoints = $selected->sum('points');
-                    $totalPoints += $eventPoints;
-
-                    $fishDetails[] = [
-                        'event_id' => $eventId,
-                        'event_name' => $eventsById->get($eventId)->name ?? 'Unknown',
-                        'fish_count' => $selected->count(),
-                        'points' => $eventPoints,
-                        'top_fish_fork_length' => $selected->first()->fork_length ?? '-',
-                    ];
-                }
-
-                // Include team even if totalPoints is 0 (participated but caught none of selected species)
-                $teamTotals[] = [
-                    'team_id' => $teamId,
-                    'team_uid' => $team->team_uid ?? '-',
-                    'team_name' => $team->name ?? '-',
-                    'total_points' => (float) $totalPoints,
-                    'fish_details' => $fishDetails,
-                    'events_participated' => count($fishDetails), // participation events (not just scoring)
-                    'total_events' => count($selectedEventIds),
-                ];
-            }
-
-            // Sort by total points DESC, then team_uid ASC for stable ordering
-            usort($teamTotals, function ($a, $b) {
-                $pointsCmp = ($b['total_points'] <=> $a['total_points']);
-                if ($pointsCmp !== 0) {
-                    return $pointsCmp;
-                }
-                return strcmp((string) $a['team_uid'], (string) $b['team_uid']);
-            });
-
-            // Add rank
-            $rank = 1;
-            foreach ($teamTotals as &$teamData) {
-                $teamData['rank'] = $rank++;
-            }
-
-            $teamRankings = collect($teamTotals);
-
-            // Build per-event sections for the UI (event heading -> list of teams)
-            $sections = [];
-            foreach ($selectedEventIds as $eventId) {
-                $event = $eventsById->get($eventId);
-                if (!$event) {
-                    continue;
-                }
-
-                $teamIdsForEvent = $participatedTeamIdsByEvent->get($eventId, []);
-                $rows = [];
-
-                foreach ($teamIdsForEvent as $teamId) {
-                    $team = $teamsById->get($teamId);
-                    if (!$team) {
-                        continue;
-                    }
-
-                    $selected = $catchesByTeamEvent[$teamId][$eventId] ?? collect();
-                    $eventPoints = $selected->sum('points');
-
-                    $rows[] = [
-                        'team_id' => $teamId,
-                        'team_uid' => $team->team_uid ?? '-',
-                        'team_name' => $team->name ?? '-',
-                        'fish_count' => $selected->count(),
-                        'points' => (float) $eventPoints,
-                        'fish' => $selected->map(fn ($c) => [
-                            'catch_id' => $c->id,
-                            'fork_length' => $c->fork_length,
-                            'points' => $c->points,
-                        ])->values()->all(),
-                    ];
-                }
-
-                // Sort teams within each event by points DESC, then team_uid ASC
-                usort($rows, function ($a, $b) {
-                    $pointsCmp = ($b['points'] <=> $a['points']);
-                    if ($pointsCmp !== 0) {
-                        return $pointsCmp;
-                    }
-                    return strcmp((string) $a['team_uid'], (string) $b['team_uid']);
-                });
-
-                $sections[] = [
-                    'event_id' => $eventId,
-                    'event_name' => $event->name ?? 'Unknown',
-                    'teams' => $rows,
-                ];
-            }
-
-            $eventSections = collect($sections);
-        }
-
         return view('portal.reports.multi-event-ranking-report', compact(
             'events',
             'species',
             'selectedEventIds',
             'specieId',
-            'maxFishPerEvent',
-            'teamRankings',
-            'eventSections'
+            'maxFishPerEvent'
         ));
+    }
+
+    /**
+     * @param  array<int, int|string>  $selectedEventIds
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function buildMultiEventBagReportRows(array $selectedEventIds, int $specieId, int $maxFishPerEvent): Collection
+    {
+        $events = Event::orderByDesc('id')->get();
+        $eventsById = $events->keyBy('id');
+
+        $participations = DB::table('event_team_user')
+            ->whereIn('event_id', $selectedEventIds)
+            ->whereNull('deleted_at')
+            ->select('event_id', 'team_id')
+            ->distinct()
+            ->get();
+
+        $participatedTeamIds = $participations->pluck('team_id')->unique()->values();
+        $participatedEventIdsByTeam = $participations
+            ->groupBy('team_id')
+            ->map(fn ($rows) => $rows->pluck('event_id')->unique()->values()->all());
+
+        if ($participatedTeamIds->isEmpty()) {
+            return collect();
+        }
+
+        $teamsById = Team::whereIn('id', $participatedTeamIds)->get()->keyBy('id');
+
+        $candidateCatches = DB::query()->fromSub(function ($q) use ($selectedEventIds, $participatedTeamIds, $specieId) {
+            $q->from('event_catches')
+                ->whereIn('event_id', $selectedEventIds)
+                ->whereIn('team_id', $participatedTeamIds)
+                ->where('specie_id', $specieId)
+                ->select([
+                    'id',
+                    'event_id',
+                    'team_id',
+                    'fork_length',
+                    'points',
+                    DB::raw('ROW_NUMBER() OVER (PARTITION BY team_id, event_id ORDER BY CAST(points AS DECIMAL(12,4)) DESC, CAST(fork_length AS UNSIGNED) DESC) as rn'),
+                ]);
+        }, 't')
+            ->where('rn', '<=', $maxFishPerEvent)
+            ->orderBy('team_id')
+            ->orderBy('event_id')
+            ->orderBy('rn')
+            ->get();
+
+        $catchesByTeamEvent = $candidateCatches->groupBy(['team_id', 'event_id']);
+
+        $rows = [];
+
+        foreach ($participatedTeamIds as $teamId) {
+            $team = $teamsById->get($teamId);
+            if (!$team) {
+                continue;
+            }
+
+            $teamNumber = $team->team_uid ?? '-';
+            $teamName = $team->name ?? '-';
+            $teamEventIdSet = $participatedEventIdsByTeam->get($teamId, []);
+
+            foreach ($selectedEventIds as $eventId) {
+                if (!in_array((int) $eventId, array_map('intval', $teamEventIdSet), true)) {
+                    continue;
+                }
+
+                $selected = $catchesByTeamEvent->get($teamId, collect())->get($eventId, collect());
+                $eventBagPoints = (float) $selected->sum('points');
+                if ($eventBagPoints <= 0) {
+                    continue;
+                }
+
+                $eventBagForkLength = (float) $selected->sum(function ($row) {
+                    return (float) ($row->fork_length ?? 0);
+                });
+                $eventName = $eventsById->get($eventId)->name ?? 'Unknown';
+
+                $rows[] = [
+                    'event' => $eventName,
+                    'team_number' => $teamNumber,
+                    'team_name' => $teamName,
+                    'fork_length' => $eventBagForkLength,
+                    'points' => $eventBagPoints,
+                    '_sort_team' => (string) $teamNumber,
+                ];
+            }
+        }
+
+        usort($rows, function ($a, $b) {
+            $pointsCmp = ($b['points'] <=> $a['points']);
+            if ($pointsCmp !== 0) {
+                return $pointsCmp;
+            }
+
+            $teamCmp = strcmp($a['_sort_team'], $b['_sort_team']);
+            if ($teamCmp !== 0) {
+                return $teamCmp;
+            }
+
+            return strcmp((string) $a['event'], (string) $b['event']);
+        });
+
+        $finalRows = collect();
+        $rank = 1;
+        foreach ($rows as $row) {
+            unset($row['_sort_team']);
+            $row['rank'] = $rank++;
+            $finalRows->push($row);
+        }
+
+        return $finalRows;
     }
 }
