@@ -353,6 +353,7 @@ class EventController extends Controller
                     'id' => $specie->id,
                     'name' => $specie->name,
                     'minimum_video_size' => $specie->minimum_video_size,
+                    'maximum_video_size' => $specie->maximum_video_size,
                     'is_size_validation_enabled' => (int) ($specie->pivot->is_size_validation_enabled ?? 1),
                 ];
             }),

@@ -44,6 +44,7 @@
                                                 <th>Validation Rule</th>
                                                 <th>Minimum Validation Rule</th>
                                                 <th>Min Length Video Validation</th>
+                                                <th>Max Length Video Validation</th>
                                                 <th>Action</th>
                                             </tr>
                                         </thead>
@@ -90,6 +91,10 @@
                 {
                     data: 'minimum_video_size',
                     name: 'minimum_video_size'
+                },
+                {
+                    data: 'maximum_video_size',
+                    name: 'maximum_video_size'
                 },
                 {
                     data: 'action',
