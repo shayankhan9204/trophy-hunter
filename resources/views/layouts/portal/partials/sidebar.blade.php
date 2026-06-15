@@ -48,6 +48,12 @@
         </li>
 
         <li>
+            <a href="{{ route('custom.team.ranking.report') }}"><i
+                        class="ti-view-list-alt"></i><span>Custom Team Ranking Report</span><span
+                        class="menu-arrow"></span></a>
+        </li>
+
+        <li>
             <a href="{{ route('individual.fish.report') }}"><i
                         class="ti-view-list-alt"></i><span>Individual Fish Report</span><span
                         class="menu-arrow"></span></a>

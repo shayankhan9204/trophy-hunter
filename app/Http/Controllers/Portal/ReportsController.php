@@ -128,6 +128,140 @@ class ReportsController extends Controller
         return view('portal.reports.ranking-report', compact('events'));
     }
 
+    public function customTeamRankingReport(Request $request)
+    {
+        $events = Event::all();
+
+        if ($request->ajax()) {
+            $eventId = $request->get('event_id');
+            $speciesIds = array_map('intval', array_filter((array) $request->get('species', [])));
+            $speciesFishCounts = collect((array) $request->get('species_fish_counts', []))
+                ->mapWithKeys(fn ($count, $id) => [(int) $id => (int) $count])
+                ->all();
+
+            if (!$eventId || empty($speciesIds)) {
+                return DataTables::of(collect())->make(true);
+            }
+
+            $catches = EventCatch::with(['angler', 'team', 'specie'])
+                ->where('event_id', $eventId)
+                ->whereIn('specie_id', $speciesIds)
+                ->get();
+
+            $getIncludedCatches = function (Collection $teamCatches) use ($speciesIds, $speciesFishCounts) {
+                $included = collect();
+
+                foreach ($speciesIds as $specieId) {
+                    $limit = (int) ($speciesFishCounts[$specieId] ?? 0);
+                    if ($limit <= 0) {
+                        continue;
+                    }
+
+                    $specieCatches = $teamCatches
+                        ->where('specie_id', (int) $specieId)
+                        ->sortByDesc('fork_length')
+                        ->values()
+                        ->take($limit);
+
+                    $included = $included->merge($specieCatches);
+                }
+
+                return $included->sortByDesc('fork_length')->values();
+            };
+
+            $teamPoints = $catches
+                ->groupBy('team_id')
+                ->map(fn ($teamCatches) => (float) $getIncludedCatches($teamCatches)->sum('points'));
+
+            $sortedTeamIds = $teamPoints->sort(function ($pointsA, $pointsB) {
+                $pointsCmp = $pointsB <=> $pointsA;
+                if ($pointsCmp !== 0) {
+                    return $pointsCmp;
+                }
+
+                return 0;
+            })->keys()->values();
+
+            $teamRanks = $sortedTeamIds->flip()->map(fn ($index) => $index + 1);
+            $finalRows = collect();
+
+            foreach ($sortedTeamIds as $teamId) {
+                $teamCatches = $catches->where('team_id', $teamId);
+                $includedCatches = $getIncludedCatches($teamCatches);
+
+                if ($includedCatches->isEmpty()) {
+                    continue;
+                }
+
+                $rank = $teamRanks[$teamId] ?? 'N/A';
+                $teamNumber = optional($includedCatches->first()->team)->team_uid ?? 'N/A';
+                $teamName = optional($includedCatches->first()->team)->name ?? 'N/A';
+                $totalPoints = 0;
+
+                foreach ($includedCatches as $catch) {
+                    $etu = DB::table('event_team_user')
+                        ->where('event_id', $eventId)
+                        ->where('team_id', $teamId)
+                        ->where('user_id', $catch->angler_id)
+                        ->first();
+
+                    $photoUrl = $catch->getFirstMediaUrl('event_fish_images');
+
+                    $fishPhoto = $photoUrl
+                        ? '<a href="' . e($photoUrl) . '" class="glightbox" data-gallery="team-' . $teamId . '">'
+                        . '<img src="' . e($photoUrl) . '" class="img-thumbnail" '
+                        . 'style="width:200px;height:130px;object-fit:contain;cursor:pointer;" />'
+                        . '</a>'
+                        : 'No Photo';
+
+                    $videoUrl = $catch->getFirstMediaUrl('release_video');
+
+                    $releaseVideo = $videoUrl
+                        ? '<a href="' . e($videoUrl) . '" class="glightbox">View Video</a>'
+                        : 'No Video';
+
+                    $finalRows->push([
+                        'rank' => $rank,
+                        'team_id' => $teamId,
+                        'team_number' => $teamNumber,
+                        'team_name' => $teamName,
+                        'angler_number' => $etu->angular_uid ?? 'N/A',
+                        'angler_name' => $etu->angular_name ?? $catch->angler->name ?? 'N/A',
+                        'specie' => $catch->specie->name,
+                        'fork_length' => $catch->fork_length,
+                        'points' => $catch->points,
+                        'fish_photo' => $fishPhoto,
+                        'release_video' => $releaseVideo,
+                        'is_summary_row' => false,
+                    ]);
+
+                    $totalPoints += $catch->points;
+                }
+
+                $finalRows->push([
+                    'rank' => '',
+                    'team_id' => $teamId,
+                    'team_number' => '<strong>' . $teamNumber . '</strong>',
+                    'team_name' => '<strong>' . $teamName . '</strong>',
+                    'angler_number' => '',
+                    'angler_name' => '',
+                    'specie' => '',
+                    'fork_length' => '<strong>Total Points</strong>',
+                    'points' => '<strong>' . $totalPoints . '</strong>',
+                    'fish_photo' => '',
+                    'release_video' => '',
+                    'is_summary_row' => true,
+                ]);
+            }
+
+            return DataTables::of($finalRows)
+                ->rawColumns(['angler_name', 'team_number', 'team_name', 'points', 'fork_length', 'fish_photo', 'release_video'])
+                ->make(true);
+        }
+
+        return view('portal.reports.custom-team-ranking-report', compact('events'));
+    }
+
     public function individualFishReport(Request $request)
     {
         $events = Event::all();

@@ -57,6 +57,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/notification/store', [NotificationController::class, 'store'])->name('notification.store');
 
     Route::get('/team-ranking-report', [ReportsController::class, 'teamRankingReport'])->name('team.ranking.report');
+    Route::get('/custom-team-ranking-report', [ReportsController::class, 'customTeamRankingReport'])->name('custom.team.ranking.report');
     Route::get('/individual-fish-report', [ReportsController::class, 'individualFishReport'])->name('individual.fish.report');
     Route::get('/extra-photo-report', [ReportsController::class, 'extraPhotoReport'])->name('extra.photo.report');
     Route::get('/event-login-report', [ReportsController::class, 'eventLoginReport'])->name('event.login.report');
