@@ -87,7 +87,7 @@
                                                         </div>
                                                     </div>
 
-                                                    <div class="col-2 p-0">
+                                                    <div class="col-1 p-0">
                                                         <div class="col-lg-12">
                                                             <div class="form-group">
                                                                 <label class="m-0">Phone</label>
@@ -95,6 +95,18 @@
                                                                        name="angler_phone[]"
                                                                        value="{{ $angular->phone }}"
                                                                        placeholder="Type Phone ">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-2 p-0">
+                                                        <div class="col-lg-12">
+                                                            <div class="form-group">
+                                                                <label class="m-0">Password</label>
+                                                                <input type="text" class="form-control"
+                                                                       name="angler_password[]"
+                                                                       value="{{ $angular->plain_password ?: $angular->phone }}"
+                                                                       placeholder="Type Password ">
                                                             </div>
                                                         </div>
                                                     </div>
@@ -173,7 +185,7 @@
                                                         </div>
                                                     </div>
 
-                                                    <div class="col-2 p-0">
+                                                    <div class="col-1 p-0">
                                                         <div class="col-lg-12">
                                                             <div class="form-group">
                                                                 <label class="m-0">Phone</label>
@@ -181,6 +193,18 @@
                                                                        name="angler_phone[]"
                                                                        value=""
                                                                        placeholder="Type Phone ">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-2 p-0">
+                                                        <div class="col-lg-12">
+                                                            <div class="form-group">
+                                                                <label class="m-0">Password</label>
+                                                                <input type="text" class="form-control"
+                                                                       name="angler_password[]"
+                                                                       value=""
+                                                                       placeholder="Type Password ">
                                                             </div>
                                                         </div>
                                                     </div>

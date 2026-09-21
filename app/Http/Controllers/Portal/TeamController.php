@@ -69,6 +69,7 @@ class TeamController extends Controller
             'angler_category' => 'array',
             'angler_email' => 'array',
             'angler_phone' => 'array',
+            'angler_password' => 'array',
             'angler_uid' => 'array',
         ]);
 
@@ -86,6 +87,7 @@ class TeamController extends Controller
                 $category = $request->angler_category[$index] ?? 'adult';
                 $email = $request->angler_email[$index] ?? null;
                 $phone = $request->angler_phone[$index] ?? null;
+                $password = $request->angler_password[$index] ?? null;
                 $angularUid = $request->angler_uid[$index] ?? null;
 
                 if (!$name) continue;
@@ -94,12 +96,19 @@ class TeamController extends Controller
                     $angler = $team->anglers()->where('users.id', $anglerId)->first();
 
                     if ($angler) {
-                        $angler->update([
+                        $updateData = [
                             'name' => $name,
                             'email' => $email,
                             'phone' => $phone,
                             'category' => $category,
-                        ]);
+                        ];
+
+                        if ($password) {
+                            $updateData['password'] = Hash::make($password);
+                            $updateData['plain_password'] = $password;
+                        }
+
+                        $angler->update($updateData);
 
                         $team->anglers()->updateExistingPivot($angler->id, [
                             'angular_uid' => $angularUid,
@@ -108,13 +117,16 @@ class TeamController extends Controller
                         $submittedAnglerIds[] = $angler->id;
                     }
                 } else {
+                    $plainPassword = $password ?: $phone;
+
                     $angler = User::firstOrCreate(
                         ['email' => $email],
                         [
                             'name' => $name,
                             'phone' => $phone,
                             'category' => $category,
-                            'password' => Hash::make($phone),
+                            'password' => Hash::make($plainPassword),
+                            'plain_password' => $plainPassword,
                         ]
                     );
 

@@ -23,6 +23,7 @@ class User extends Authenticatable implements HasMedia
         'name',
         'email',
         'password',
+        'plain_password',
         'angular_uid',
         'team_id',
         'category',

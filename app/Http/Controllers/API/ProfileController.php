@@ -52,6 +52,7 @@ class ProfileController extends Controller
             // Handle password separately
             if (!empty($validated['password'])) {
                 $userData['password'] = Hash::make($validated['password']);
+                $userData['plain_password'] = $validated['password'];
             }
 
             $user->update($userData);

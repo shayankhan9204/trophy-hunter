@@ -10,10 +10,22 @@ use Maatwebsite\Excel\Concerns\ToModel;
 class TeamMembersImport implements ToModel
 {
     protected $eventId;
+    protected array $allowedCategories = ['adult','junior','senior','female','veteran']; 
+    protected string $defaultCategory = 'adult';
+
 
     public function __construct($eventId)
     {
         $this->eventId = $eventId;
+    }
+
+    protected function normalizeCategory(?string $category): string
+    {
+        $category = strtolower(trim((string) $category));
+
+        return in_array($category, $this->allowedCategories, true)
+            ? $category
+            : $this->defaultCategory;
     }
 
     public function model(array $row)
@@ -24,7 +36,7 @@ class TeamMembersImport implements ToModel
         $teamName = trim($row[0]);
         $angularNo = trim($row[1]);
         $name = trim($row[2]);
-        $category = trim($row[3]);
+        $category = $this->normalizeCategory($row[3]);
         $email = strtolower(trim($row[4]));
         $phone = trim($row[5]);
 
@@ -37,6 +49,7 @@ class TeamMembersImport implements ToModel
         $user->phone = $phone;
         if (!$user->exists) {
             $user->password = Hash::make($phone);
+            $user->plain_password = $phone;
         }
         $user->save();
 
