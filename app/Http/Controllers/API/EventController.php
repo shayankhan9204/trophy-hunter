@@ -113,127 +113,170 @@ class EventController extends Controller
 
     public function submitBag(Request $request, $event_id = null)
     {
-            DB::beginTransaction();
+        DB::beginTransaction();
 
         try {
             $request->validate([
-                'fish_bag' => 'required|array|min:1',
+                'fish_bag'      => 'nullable|array',
+                'safety_checks' => 'nullable|array',
             ]);
 
             $event = Event::findOrFail($event_id);
 
-            $rules = [
-                'fish_bag.*.angler_id' => 'required',
-                'fish_bag.*.points' => 'required',
-                'fish_bag.*.specie_id' => 'required|exists:species,id',
-                'fish_bag.*.fork_length' => 'required|numeric',
+            // ── Fish Bag ─────────────────────────────────────────────────────
+            if (!empty($request->fish_bag)) {
+                $rules = [
+                    'fish_bag.*.angler_id'  => 'required',
+                    'fish_bag.*.points'     => 'required',
+                    'fish_bag.*.specie_id'  => 'required|exists:species,id',
+                    'fish_bag.*.fork_length' => 'required|numeric',
 //                'fish_bag.*.specie_image' => 'array|min:1',
-            ];
+                ];
 
-            if ($event->tagged == 1) {
-                $rules['fish_bag.*.tag_type'] = 'required|string';
-                $rules['fish_bag.*.tag_no'] = 'required|string';
-                $rules['fish_bag.*.line_class'] = 'required|string';
+                if ($event->tagged == 1) {
+                    $rules['fish_bag.*.tag_type']  = 'required|string';
+                    $rules['fish_bag.*.tag_no']    = 'required|string';
+                    $rules['fish_bag.*.line_class'] = 'required|string';
+                } else {
+                    $rules['fish_bag.*.tag_type']  = 'nullable|string';
+                    $rules['fish_bag.*.tag_no']    = 'nullable|string';
+                    $rules['fish_bag.*.line_class'] = 'nullable|string';
+                }
 
-            } else {
-                $rules['fish_bag.*.tag_type'] = 'nullable|string';
-                $rules['fish_bag.*.tag_no'] = 'nullable|string';
-                $rules['fish_bag.*.line_class'] = 'nullable|string';
+                $request->validate($rules);
+
+                foreach ($request->fish_bag as $item) {
+                    $exists = EventCatch::where('event_id', $event->id)
+                        ->where('team_id', $item['team_id'] ?? null)
+                        ->where('angler_id', $item['angler_id'])
+                        ->where('catch_timestamp', $item['created_at'] ?? null)
+                        ->exists();
+
+                    if ($exists) {
+                        continue; // skip duplicate
+                    }
+
+                    $eventCatch = EventCatch::create([
+                        'event_id'        => $event->id,
+                        'team_id'         => $item['team_id'] ?? null,
+                        'angler_id'       => $item['angler_id'],
+                        'specie_id'       => $item['specie_id'],
+                        'fork_length'     => $item['fork_length'],
+                        'tag_type'        => $item['tag_type'] ?? null,
+                        'tag_no'          => $item['tag_no'] ?? null,
+                        'line_class'      => $item['line_class'] ?? null,
+                        'points'          => $item['points'] ?? null,
+                        'catch_timestamp' => $item['created_at'] ?? null,
+                    ]);
+
+                    if (isset($item['specie_image']) && is_array($item['specie_image'])) {
+                        foreach ($item['specie_image'] as $image) {
+                            // $eventCatch->addMedia($image)->toMediaCollection('event_fish_images');
+                            Media::create([
+                                'model_type'             => EventCatch::class,
+                                'model_id'               => $eventCatch->id,
+                                'collection_name'        => 'event_fish_images',
+                                'name'                   => 'fish-image',
+                                'file_name'              => basename($image),
+                                'disk'                   => 'public',
+                                'size'                   => 0,
+                                'custom_properties'      => ['url' => $image],
+                                'manipulations'          => [],
+                                'generated_conversions'  => [],
+                                'responsive_images'      => [],
+                            ]);
+                        }
+                    }
+
+                    if (isset($item['glory_photos']) && is_array($item['glory_photos'])) {
+                        foreach ($item['glory_photos'] as $image) {
+                            // $eventCatch->addMedia($image)->toMediaCollection('glory_photos');
+                            Media::create([
+                                'model_type'             => EventCatch::class,
+                                'model_id'               => $eventCatch->id,
+                                'collection_name'        => 'glory_photos',
+                                'name'                   => 'fish-image',
+                                'file_name'              => basename($image),
+                                'disk'                   => 'public',
+                                'size'                   => 0,
+                                'custom_properties'      => ['url' => $image],
+                                'manipulations'          => [],
+                                'generated_conversions'  => [],
+                                'responsive_images'      => [],
+                            ]);
+                        }
+                    }
+
+                    if (isset($item['release_video'])) {
+                        // $eventCatch->addMedia($item['release_video'])->toMediaCollection('release_video');
+                        Media::create([
+                            'model_type'             => EventCatch::class,
+                            'model_id'               => $eventCatch->id,
+                            'collection_name'        => 'release_video',
+                            'name'                   => 'fish-image',
+                            'file_name'              => basename($item['release_video']),
+                            'disk'                   => 'public',
+                            'size'                   => 0,
+                            'custom_properties'      => ['url' => $item['release_video']],
+                            'manipulations'          => [],
+                            'generated_conversions'  => [],
+                            'responsive_images'      => [],
+                        ]);
+                    }
+                }
             }
 
-            $validated = $request->validate($rules);
-
-            foreach ($request->fish_bag as $item) {
-                $angler = User::find($item['angler_id']);
-                $exists = EventCatch::where('event_id', $event->id)
-                ->where('team_id', $item['team_id'] ?? null)
-                ->where('angler_id', $item['angler_id'])
-                ->where('catch_timestamp', $item['created_at'] ?? null)
-                ->exists();
-
-                if ($exists) {
-                    continue; // skip duplicate
-                }
-                $eventCatch = EventCatch::create([
-                    'event_id' => $event->id,
-                    'team_id' => $item['team_id'] ?? null,
-                    'angler_id' => $item['angler_id'],
-                    'specie_id' => $item['specie_id'],
-                    'fork_length' => $item['fork_length'],
-                    'tag_type' => $item['tag_type'] ?? null,
-                    'tag_no' => $item['tag_no'] ?? null,
-                    'line_class' => $item['line_class'] ?? null,
-                    'points' => $item['points'] ?? null,
-                    'catch_timestamp' => $item['created_at'] ?? null
+            // ── Safety Checks ────────────────────────────────────────────────
+            if (!empty($request->safety_checks)) {
+                $request->validate([
+                    'safety_checks.*.location_code' => 'required|string',
+                    'safety_checks.*.latitude'      => 'required',
+                    'safety_checks.*.longitude'     => 'required',
+                    'safety_checks.*.time_stamp'    => 'required',
+                    'safety_checks.*.team_id'       => 'required',
+                    'safety_checks.*.angler_id'     => 'required',
                 ]);
 
-                if (isset($item['specie_image']) && is_array($item['specie_image'])) {
-                    foreach ($item['specie_image'] as $image) {
-                        // $eventCatch->addMedia($image)->toMediaCollection('event_fish_images');
-                         Media::create([
-                            'model_type' => EventCatch::class,
-                            'model_id' => $eventCatch->id,
-                            'collection_name' => 'event_fish_images',
-                            'name' => 'fish-image',
-                            'file_name' => basename($image),
-                            'disk' => 'public',
-                            'size' => 0,
-                            'custom_properties' => [
-                                'url' => $image
-                            ],
-                            'manipulations' => [],
-                            'generated_conversions' => [],
-                            'responsive_images' => [],
-                        ]);
-                    }
-                }
-                if (isset($item['glory_photos']) && is_array($item['glory_photos'])) {
-                    foreach ($item['glory_photos'] as $image) {
-                        // $eventCatch->addMedia($image)->toMediaCollection('glory_photos');
-                        Media::create([
-                            'model_type' => EventCatch::class,
-                            'model_id' => $eventCatch->id,
-                            'collection_name' => 'glory_photos',
-                            'name' => 'fish-image',
-                            'file_name' => basename($image),
-                            'disk' => 'public',
-                            'size' => 0,
-                            'custom_properties' => [
-                                'url' => $image
-                            ],
-                            'manipulations' => [],
-                            'generated_conversions' => [],
-                            'responsive_images' => [],
-                        ]);
-                    }
-                }
-                if (isset($item['release_video'])) {
-                    // $eventCatch->addMedia($item['release_video'])->toMediaCollection('release_video');
-                        Media::create([
-                            'model_type' => EventCatch::class,
-                            'model_id' => $eventCatch->id,
-                            'collection_name' => 'release_video',
-                            'name' => 'fish-image',
-                            'file_name' => basename($item['release_video']),
-                            'disk' => 'public',
-                            'size' => 0,
-                            'custom_properties' => [
-                                'url' => $item['release_video']
-                            ],
-                            'manipulations' => [],
-                            'generated_conversions' => [],
-                            'responsive_images' => [],
-                        ]);
+                foreach ($request->safety_checks as $check) {
+                    // Skip duplicate: same angler already checked in at this timestamp
+                    $alreadyExists = EventSafetyCheck::where('event_id', $event->id)
+                        ->where('angler_id', $check['angler_id'])
+                        ->where('time_stamp', $check['time_stamp'])
+                        ->exists();
+
+                    if ($alreadyExists) {
+                        continue;
                     }
 
+                    // Resolve the location area from the event's grid map
+                    $locationArea = $event->locationAreas()
+                        ->where('location_reference', $check['location_code'])
+                        ->first();
+
+                    // Skip silently if location code is invalid (don't fail the whole sync)
+                    if (!$locationArea) {
+                        continue;
+                    }
+
+                    EventSafetyCheck::create([
+                        'event_id'               => $event->id,
+                        'team_id'                => $check['team_id'],
+                        'angler_id'              => $check['angler_id'],
+                        'event_location_area_id' => $locationArea->id,
+                        'location_code'          => $check['location_code'],
+                        'latitude'               => $check['latitude'],
+                        'longitude'              => $check['longitude'],
+                        'time_stamp'             => $check['time_stamp'],
+                    ]);
+                }
             }
 
-                    DB::commit();
+            DB::commit();
 
             return APIResponse::success('Bag Submitted Successfully');
 
         } catch (\Exception $exception) {
-                    DB::rollBack();
+            DB::rollBack();
 
             return APIResponse::error($exception->getMessage());
         }
