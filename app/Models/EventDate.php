@@ -11,5 +11,6 @@ class EventDate extends Model
         'date',
         'start_time',
         'end_time',
+        'im_safe_interval',
     ];
 }

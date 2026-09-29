@@ -133,6 +133,17 @@
                                                         @enderror
                                                     </div>
 
+                                                    <div class="col-md-2">
+                                                        <div class="form-group">
+                                                            <label>I'M SAFE Interval (mins)</label>
+                                                            <input class="form-control" type="number" min="1" step="1" name="im_safe_interval[]"
+                                                                   value="{{ $date->im_safe_interval ?? '' }}">
+                                                        </div>
+                                                        @error('im_safe_interval')
+                                                        <span class="text-danger">{{ $message }}</span>
+                                                        @enderror
+                                                    </div>
+
                                                     <div
                                                         class="col-1 d-flex justify-content-between align-items-center">
                                                         <button type="button" id="minus-date"
@@ -185,6 +196,16 @@
                                                             @enderror
                                                         </div>
 
+                                                        <div class="col-md-2">
+                                                            <div class="form-group">
+                                                                <label>I'M SAFE Interval (mins)</label>
+                                                                <input class="form-control" type="number" min="1" step="1" name="im_safe_interval[]"
+                                                                       value="">
+                                                            </div>
+                                                            @error('im_safe_interval')
+                                                            <span class="text-danger">{{ $message }}</span>
+                                                            @enderror
+                                                        </div>
 
                                                         <div
                                                             class="col-1 d-flex justify-content-between align-items-center">
@@ -236,6 +257,25 @@
                                     </div>
 
                                     <div class="row mb-3" id="new-sponsor-previews">
+                                    </div>
+
+                                    <h4>I'M SAFE Feature</h4>
+                                    <p>
+                                        <strong>Note:</strong> Check this box to enable the I'M SAFE feature for this event,
+                                        which requires users to periodically check in based on the interval configured in Event Dates.
+                                    </p>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-12">
+                                            <div class="">
+                                                <input class="" @if($event->has_im_safe == 1) checked @endif
+                                                       type="checkbox" value="1" name="has_im_safe">
+                                                <label>Enable I'M SAFE Feature?</label>
+                                            </div>
+                                        </div>
+                                        @error('has_im_safe')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
                                     </div>
 
                                     <h4>Tagged Event</h4>
@@ -692,6 +732,9 @@
 
                 select.val(null).trigger("change");
                 clone.find("input[type=text]").val("");
+                clone.find("input[type=date]").val("");
+                clone.find("input[type=time]").val("");
+                clone.find("input[type=number]").val("");
                 clone.find("#minus-date").show();
                 clone.find("#add-date").hide();
 

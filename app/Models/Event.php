@@ -21,6 +21,7 @@ class Event extends Model implements HasMedia
         'minimum_release_size',
         'is_tagged',
         'has_grid_map',
+        'has_im_safe',
     ];
 
     public function getSponsorImages(): array

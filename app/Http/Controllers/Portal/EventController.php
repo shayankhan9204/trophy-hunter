@@ -131,6 +131,7 @@ class EventController extends Controller
                 // 'minimum_release_size' => $request->minimum_release_size,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
                 'has_grid_map' => isset($request->has_grid_map) ? 1 : 0,
+                'has_im_safe' => isset($request->has_im_safe) ? 1 : 0,
             ]);
 
 //            if ($request->has('teams')) {
@@ -156,6 +157,7 @@ class EventController extends Controller
                             'date' => $date,
                             'start_time' => $request->start_time[$index],
                             'end_time' => $request->end_time[$index],
+                            'im_safe_interval' => $request->im_safe_interval[$index] ?? null,
                         ]);
                     }
                 }
@@ -264,6 +266,7 @@ class EventController extends Controller
                 'end_time' => $request->end_time,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
                 'has_grid_map' => $hasGridMap ? 1 : 0,
+                'has_im_safe' => isset($request->has_im_safe) ? 1 : 0,
             ]);
 
 //            $event->teams()->sync($request->teams ?? []);
@@ -301,6 +304,7 @@ class EventController extends Controller
                         'date' => $date,
                         'start_time' => $request->start_time[$index],
                         'end_time' => $request->end_time[$index],
+                        'im_safe_interval' => $request->im_safe_interval[$index] ?? null,
                     ]);
                 }
             }
