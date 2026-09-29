@@ -15,6 +15,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
 
         Route::post('/submit/bag/{event_id?}', [EventController::class, 'submitBag']);
         Route::post('/submit/attendance/{event_id?}', [EventController::class, 'submitAttendance']);
+        Route::post('/submit/safety-check', [EventController::class, 'submitSafetyCheck']);
     });
 
     Route::group(['prefix' => 'user'], function () {

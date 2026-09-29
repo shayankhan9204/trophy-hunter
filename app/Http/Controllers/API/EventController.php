@@ -6,6 +6,7 @@ use App\Helpers\APIResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\EventSafetyCheck;
 use App\Models\EventCatch;
 use App\Models\Notification;
 use App\Models\Specie;
@@ -277,6 +278,52 @@ class EventController extends Controller
             }
 
             return APIResponse::success('Attendance Mark Successfully');
+
+        } catch (\Exception $exception) {
+            return APIResponse::error($exception->getMessage());
+        }
+    }
+
+    public function submitSafetyCheck(Request $request, $event_id = null)
+    {
+        try {
+            $request->validate([
+                'event_id'      => 'required|integer|exists:events,id',
+                'location_code' => 'required|string',
+                'latitude'      => 'required',
+                'longitude'     => 'required',
+                'time_stamp'    => 'required',
+                'team_id'       => 'required',
+                'angler_id'     => 'required',
+            ]);
+
+            $event = Event::findOrFail($request->event_id);
+
+            // Resolve the location area from the event's grid map
+            $locationArea = $event->locationAreas()
+                ->where('location_reference', $request->location_code)
+                ->first();
+
+            if (!$locationArea) {
+                return APIResponse::error(
+                    'The provided location_code does not match any location in this event grid map.'
+                );
+            }
+
+            $safetyCheck = EventSafetyCheck::create([
+                'event_id'               => $request->event_id,
+                'team_id'                => $request->team_id,
+                'angler_id'              => $request->angler_id,
+                'event_location_area_id' => $locationArea->id,
+                'location_code'          => $request->location_code,
+                'latitude'               => $request->latitude,
+                'longitude'              => $request->longitude,
+                'time_stamp'             => $request->time_stamp,
+            ]);
+
+            return APIResponse::success('Safety check submitted successfully', [
+                'safety_check' => $safetyCheck,
+            ]);
 
         } catch (\Exception $exception) {
             return APIResponse::error($exception->getMessage());

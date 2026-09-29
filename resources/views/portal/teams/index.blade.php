@@ -129,7 +129,7 @@
                  aria-labelledby="csvUploadModalLabel"
                  aria-hidden="true">
                 <div class="modal-dialog">
-                    <form action="{{ route('upload.team') }}" method="POST" enctype="multipart/form-data">
+                    <form id="csvUploadForm" action="{{ route('upload.team') }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         <div class="modal-content">
                             <div class="modal-header">
@@ -161,7 +161,10 @@
                             </div>
 
                             <div class="modal-footer">
-                                <button type="submit" class="btn btn-primary">Upload</button>
+                                <button type="submit" id="csvUploadBtn" class="btn btn-primary">
+                                    <span id="csvUploadSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true"></span>
+                                    <span id="csvUploadBtnText">Upload</span>
+                                </button>
                                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                             </div>
                         </div>
@@ -225,13 +228,26 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const openBtn = document.getElementById('openCsvUploadModal');
+            const openBtn     = document.getElementById('openCsvUploadModal');
             const modalElement = document.getElementById('csvUploadModal');
+            const csvForm     = document.getElementById('csvUploadForm');
+            const uploadBtn   = document.getElementById('csvUploadBtn');
+            const spinner     = document.getElementById('csvUploadSpinner');
+            const btnText     = document.getElementById('csvUploadBtnText');
 
             if (openBtn && modalElement) {
                 openBtn.addEventListener('click', function () {
                     const csvModal = new bootstrap.Modal(modalElement);
                     csvModal.show();
+                });
+            }
+
+            if (csvForm) {
+                csvForm.addEventListener('submit', function () {
+                    // Show spinner and disable button to prevent double-submit
+                    spinner.classList.remove('d-none');
+                    btnText.textContent = 'Uploading...';
+                    uploadBtn.disabled = true;
                 });
             }
         });
