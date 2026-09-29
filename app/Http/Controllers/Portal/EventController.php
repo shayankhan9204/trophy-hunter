@@ -12,6 +12,7 @@ use App\Models\Rule;
 use App\Models\Specie;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\EventGridMapImporter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -110,7 +111,15 @@ class EventController extends Controller
 
 //            'sponsors' => 'required|array',
 //            'sponsors.*' => 'file|mimes:jpg,jpeg,png,gif,webp',
+            'has_grid_map' => 'nullable|in:1',
+            'grid_map_csv' => 'nullable|file|mimes:csv,txt',
         ]);
+
+        if ($request->has('has_grid_map') && !$request->hasFile('grid_map_csv')) {
+            return back()
+                ->withInput()
+                ->withErrors(['grid_map_csv' => 'Please upload a CSV file when grid map is enabled.']);
+        }
 
         try {
             DB::beginTransaction();
@@ -121,6 +130,7 @@ class EventController extends Controller
                 'fish_bag_size' => $request->fish_bag_size,
                 // 'minimum_release_size' => $request->minimum_release_size,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
+                'has_grid_map' => isset($request->has_grid_map) ? 1 : 0,
             ]);
 
 //            if ($request->has('teams')) {
@@ -184,9 +194,19 @@ class EventController extends Controller
                 }
             }
 
+            $importResult = null;
+            if ($request->has('has_grid_map') && $request->hasFile('grid_map_csv')) {
+                $importResult = app(EventGridMapImporter::class)->importFromCsv($event, $request->file('grid_map_csv'));
+            }
+
             DB::commit();
 
-            return redirect()->route('event.index')->with('success', 'Event created successfully.');
+            $successMessage = 'Event created successfully.';
+            if ($importResult && !empty($importResult['errors'])) {
+                $successMessage .= ' ' . $this->formatGridMapImportErrors($importResult);
+            }
+
+            return redirect()->route('event.index')->with('success', $successMessage);
         } catch (\Exception $e) {
             DB::rollback();
             return back()->with('error', 'Something went wrong: ' . $e->getMessage());
@@ -197,7 +217,7 @@ class EventController extends Controller
     {
 //        $teams = Team::get();
         $event = Event::where('id', $id)
-            ->with('contacts', 'notifications', 'rules', 'teams', 'dates', 'species')->first();
+            ->with('contacts', 'notifications', 'rules', 'teams', 'dates', 'species', 'locationAreas')->first();
         $species = Specie::get();
 
         return view('portal.events.edit', compact( 'event', 'species'));
@@ -217,13 +237,22 @@ class EventController extends Controller
             'species_size_validation.*' => 'nullable|in:1',
             'start_time' => 'required|array',
             'end_time' => 'required|array',
+            'has_grid_map' => 'nullable|in:1',
+            'grid_map_csv' => 'nullable|file|mimes:csv,txt',
         ]);
+
+        $event = Event::withCount('locationAreas')->findOrFail($request->id);
+        $hasGridMap = isset($request->has_grid_map);
+
+        if ($hasGridMap && !$request->hasFile('grid_map_csv') && $event->location_areas_count === 0) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['grid_map_csv' => 'Please upload a CSV file when grid map is enabled.']);
+        }
 
         DB::beginTransaction();
 
         try {
-
-            $event = Event::findOrFail($request->id);
 
             $event->update([
                 'name' => $request->name,
@@ -234,6 +263,7 @@ class EventController extends Controller
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
                 'is_tagged' => isset($request->is_tagged) ? $request->is_tagged : 0,
+                'has_grid_map' => $hasGridMap ? 1 : 0,
             ]);
 
 //            $event->teams()->sync($request->teams ?? []);
@@ -299,9 +329,22 @@ class EventController extends Controller
                     ]);
                 }
             }
+
+            $importResult = null;
+            if (!$hasGridMap) {
+                $event->locationAreas()->delete();
+            } elseif ($request->hasFile('grid_map_csv')) {
+                $importResult = app(EventGridMapImporter::class)->importFromCsv($event, $request->file('grid_map_csv'));
+            }
+
             DB::commit();
 
-            return redirect()->back()->with('success', 'Event updated successfully!');
+            $successMessage = 'Event updated successfully!';
+            if ($importResult && !empty($importResult['errors'])) {
+                $successMessage .= ' ' . $this->formatGridMapImportErrors($importResult);
+            }
+
+            return redirect()->back()->with('success', $successMessage);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -319,6 +362,7 @@ class EventController extends Controller
 //        $event->teams()->detach();
         $event->contacts()->delete();
         $event->rules()->delete();
+        $event->locationAreas()->delete();
         $event->catches()->delete();
         $event->clearMediaCollection('sponsors');
 
@@ -830,5 +874,17 @@ class EventController extends Controller
             'message' => 'Selected media deleted successfully.',
             'catches_updated' => $catches->count(),
         ]);
+    }
+
+    private function formatGridMapImportErrors(array $importResult): string
+    {
+        $errors = $importResult['errors'] ?? [];
+        $preview = implode(' | ', array_slice($errors, 0, 5));
+
+        if (count($errors) > 5) {
+            $preview .= ' | ...';
+        }
+
+        return "Grid map import: imported {$importResult['imported']} row(s). {$preview}";
     }
 }

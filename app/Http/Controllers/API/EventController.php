@@ -42,7 +42,7 @@ class EventController extends Controller
             return APIResponse::error('Event ID is required');
         }
 
-        $event = Event::where('id', $id)->with(['contacts', 'rules', 'dates', 'species'])->first();
+        $event = Event::where('id', $id)->with(['contacts', 'rules', 'dates', 'species', 'locationAreas'])->first();
 
         // $userTeamIds = Auth::user()->team->pluck('id')->toArray();
         $team = $event->teams()

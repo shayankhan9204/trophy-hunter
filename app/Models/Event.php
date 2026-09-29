@@ -20,6 +20,7 @@ class Event extends Model implements HasMedia
         'fish_bag_size',
         'minimum_release_size',
         'is_tagged',
+        'has_grid_map',
     ];
 
     public function getSponsorImages(): array
@@ -63,6 +64,11 @@ class Event extends Model implements HasMedia
     {
         return $this->belongsToMany(Specie::class, 'event_species')
             ->withPivot('is_size_validation_enabled');
+    }
+
+    public function locationAreas()
+    {
+        return $this->hasMany(EventLocationArea::class);
     }
 
 }

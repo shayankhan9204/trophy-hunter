@@ -257,6 +257,55 @@
                                         @enderror
                                     </div>
 
+                                    <h4>Grid Map</h4>
+                                    <p>
+                                        <strong>Note:</strong> Enable this if the event uses a grid map for location areas
+                                        (required for the distress feature). Upload a CSV where each row defines a rectangular
+                                        area with columns:
+                                        <strong>Location Reference</strong>,
+                                        <strong>Top Left Coord</strong>,
+                                        <strong>Top Right Coord</strong>,
+                                        <strong>Bottom Right Coord</strong>,
+                                        <strong>Bottom Left Coord</strong>.
+                                        Each coordinate should be formatted as <code>lat, long</code>.
+                                    </p>
+
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="mb-2">
+                                                <input type="checkbox" value="1" name="has_grid_map" id="has_grid_map"
+                                                       @if(old('has_grid_map', $event->has_grid_map)) checked @endif>
+                                                <label for="has_grid_map">Has Grid Map?</label>
+                                            </div>
+                                        </div>
+                                        @error('has_grid_map')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+
+                                    <div id="grid-map-upload-section" class="row"
+                                         style="{{ old('has_grid_map', $event->has_grid_map) ? '' : 'display: none;' }}">
+                                        <div class="col-md-12">
+                                            @if($event->locationAreas->count() > 0)
+                                                <p class="text-muted mb-2">
+                                                    This event currently has {{ $event->locationAreas->count() }} location area(s) loaded.
+                                                    Upload a new CSV to replace them.
+                                                </p>
+                                            @endif
+                                            <div class="form-group">
+                                                <label>Location Areas CSV</label>
+                                                <input type="file" name="grid_map_csv" id="grid_map_csv" accept=".csv,text/csv" class="d-none">
+                                                <button type="button" id="grid_map_csv_btn" class="btn btn-secondary">
+                                                    <i class="fas fa-upload"></i> Upload CSV
+                                                </button>
+                                                <span id="grid_map_csv_filename" class="ml-2 text-muted"></span>
+                                            </div>
+                                            @error('grid_map_csv')
+                                            <span class="text-danger">{{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+
                                     <h4>Event Species</h4>
                                     @php
                                         $selectedSpeciesEdit = collect(old('species', $event->species->pluck('id')->toArray()))->map(fn($id) => (int) $id)->toArray();
@@ -608,8 +657,30 @@
     </script>
 
     <script>
+        function toggleGridMapUploadEdit() {
+            if ($('#has_grid_map').is(':checked')) {
+                $('#grid-map-upload-section').show();
+            } else {
+                $('#grid-map-upload-section').hide();
+                $('#grid_map_csv').val('');
+                $('#grid_map_csv_filename').text('');
+            }
+        }
+
         $(document).ready(function () {
             renderSpeciesValidationOptionsEdit();
+            toggleGridMapUploadEdit();
+
+            $('#has_grid_map').on('change', toggleGridMapUploadEdit);
+
+            $('#grid_map_csv_btn').on('click', function () {
+                $('#grid_map_csv').trigger('click');
+            });
+
+            $('#grid_map_csv').on('change', function () {
+                var fileName = this.files.length ? this.files[0].name : '';
+                $('#grid_map_csv_filename').text(fileName);
+            });
 
             $('#species_select_edit').on('change', function () {
                 renderSpeciesValidationOptionsEdit();
