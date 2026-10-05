@@ -89,6 +89,12 @@
                     class="menu-arrow"></span></a>
         </li>
 
+        <li>
+            <a href="{{ route('im.safe.report') }}"><i
+                    class="ti-shield"></i><span>I'M SAFE Report</span><span
+                    class="menu-arrow"></span></a>
+        </li>
+
         <li class="nk-menu-heading">
             <h6 class="overline-title">Notifications</h6>
         </li>

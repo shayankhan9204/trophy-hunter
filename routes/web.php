@@ -64,6 +64,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/team-profiles-report', [ReportsController::class, 'teamProfilesReport'])->name('team.profiles.report');
     Route::get('/catch-data-report', [ReportsController::class, 'catchDataReport'])->name('catch.data.report');
     Route::get('/multi-event-ranking-report', [ReportsController::class, 'multiEventRankingReport'])->name('multi.event.ranking.report');
+    Route::get('/im-safe-report', [ReportsController::class, 'imSafeReport'])->name('im.safe.report');
+    
+    // API for date intervals
+    Route::get('/api/event-dates/{event_id}', [ReportsController::class, 'getEventDates'])->name('event.dates');
+    Route::get('/event-date-intervals/{date_id}', [ReportsController::class, 'getEventDateIntervals'])->name('event.date.intervals');
 
     Route::get('/get-species-by-event', [EventController::class, 'getSpeciesByEvent'])->name('get.species.by.event');
 

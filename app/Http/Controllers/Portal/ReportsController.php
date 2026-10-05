@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Portal;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\EventAttendance;
-use App\Models\EventCatch;
+use App\Models\EventDate;
 use App\Models\Specie;
 use App\Models\Team;
 use App\Models\User;
@@ -869,5 +869,126 @@ class ReportsController extends Controller
         }
 
         return $finalRows;
+    }
+
+    public function getEventDates($eventId)
+    {
+        $dates = Event::findOrFail($eventId)
+            ->dates()
+            ->orderBy('date')
+            ->get(['id', 'date']);
+
+        return response()->json($dates);
+    }
+
+    public function getEventDateIntervals($dateId)
+    {
+        $date = EventDate::findOrFail($dateId);
+        $intervals = [];
+
+        if ($date->start_time && $date->end_time && $date->im_safe_interval) {
+            $start = Carbon::parse($date->start_time);
+            $end = Carbon::parse($date->end_time);
+            
+            $current = $start->copy();
+            while ($current->lte($end)) {
+                $intervals[] = $current->format('H:i');
+                if ($current->eq($end)) {
+                    break;
+                }
+                $current->addMinutes($date->im_safe_interval);
+                if ($current->gt($end)) {
+                    $intervals[] = $end->format('H:i');
+                    break;
+                }
+            }
+        }
+        
+        $intervals = array_unique($intervals);
+        return response()->json(array_values($intervals));
+    }
+
+    public function imSafeReport(Request $request)
+    {
+        $events = Event::where('has_im_safe', 1)->get();
+        $eventId = $request->get('event_id');
+        $dateId = $request->get('date_id');
+        $intervals = array_filter((array) $request->input('intervals', []));
+        
+        $dates = [];
+        if ($eventId) {
+            $event = Event::find($eventId);
+            if ($event) {
+                $dates = $event->dates;
+            }
+        }
+
+        if ($request->ajax()) {
+            if (!$eventId || !$dateId) {
+                return response()->json(['data' => []]);
+            }
+            
+            $date = EventDate::where('event_id', $eventId)->find($dateId);
+            if (!$date) {
+                return response()->json(['data' => []]);
+            }
+            $targetDate = $date->date;
+
+            $safetyChecks = DB::table('event_safety_checks')
+                ->join('users', 'event_safety_checks.angler_id', '=', 'users.id')
+                ->join('teams', 'event_safety_checks.team_id', '=', 'teams.id')
+                ->where('event_safety_checks.event_id', $eventId)
+                ->whereDate('event_safety_checks.time_stamp', $targetDate)
+                ->select(
+                    'event_safety_checks.id',
+                    'event_safety_checks.angler_id',
+                    'event_safety_checks.location_code',
+                    'event_safety_checks.time_stamp',
+                    'users.name as angler_name',
+                    'users.phone as angler_phone',
+                    'teams.name as team_name'
+                )
+                ->get();
+
+            if (empty($intervals)) {
+                $matchedChecks = $safetyChecks;
+            } else {
+                $intervalMinutes = max(1, (int) ($date->im_safe_interval ?? 120));
+
+                $matchedChecks = $safetyChecks->filter(function ($check) use ($intervals, $targetDate, $intervalMinutes) {
+                    $checkTime = Carbon::parse($check->time_stamp);
+
+                    foreach ($intervals as $interval) {
+                        $intervalStart = Carbon::parse($targetDate . ' ' . $interval);
+                        $intervalEnd = $intervalStart->copy()->addMinutes($intervalMinutes);
+
+                        if ($checkTime->gte($intervalStart) && $checkTime->lt($intervalEnd)) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                });
+            }
+
+            $finalRows = $matchedChecks
+                ->sortBy([
+                    ['team_name', 'asc'],
+                    ['angler_name', 'asc'],
+                    ['time_stamp', 'asc'],
+                ])
+                ->values()
+                ->map(fn ($check) => [
+                    'team_name' => $check->team_name,
+                    'angler_name' => $check->angler_name,
+                    'phone_number' => $check->angler_phone,
+                    'location_code' => $check->location_code,
+                    'time_stamp' => Carbon::parse($check->time_stamp)->format('h:i A'),
+                ]);
+
+            return response()->json(['data' => $finalRows]);
+        }
+
+        return view('portal.reports.im-safe-report', compact('events', 'dates', 'eventId', 'dateId'));
     }
 }
