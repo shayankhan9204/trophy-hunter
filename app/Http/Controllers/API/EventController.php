@@ -22,15 +22,22 @@ class EventController extends Controller
     {
         $user = Auth::user();
 
-        $eventIds = \DB::table('event_team_user')
+        $eventTeamUsers = \DB::table('event_team_user')
             ->where('user_id', $user->id)
-            ->distinct()
-            ->pluck('event_id');
+            ->whereNull('deleted_at')
+            ->get();
+
+        $eventIds = $eventTeamUsers->pluck('event_id')->unique();
 
         $events = Event::with('dates')
             ->whereIn('id', $eventIds)
             ->orderByDesc('id')
             ->get();
+
+        foreach ($events as $event) {
+            $etu = $eventTeamUsers->firstWhere('event_id', $event->id);
+            $event->share_contact_data = $etu ? (bool)$etu->share_contact_data : false;
+        }
 
         return APIResponse::success('Events Fetched Successfully', [
             'events' => $events,
@@ -54,6 +61,8 @@ class EventController extends Controller
         if (!$team) {
             return APIResponse::error('You are not registered in this event');
         }
+
+        $event->share_contact_data = isset($team->pivot->share_contact_data) ? (bool)$team->pivot->share_contact_data : false;
 
         $event->sponsor_images = $event->getSponsorImages();
         $eventCatches = EventCatch::with(['angler', 'specie'])

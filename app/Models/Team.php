@@ -22,7 +22,7 @@ class Team extends Model
     public function anglers()
     {
         return $this->belongsToMany(User::class, 'event_team_user')
-            ->withPivot('event_id', 'angular_uid')
+            ->withPivot('event_id', 'angular_uid', 'share_contact_data')
             ->withTimestamps();
     }
 

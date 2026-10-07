@@ -77,7 +77,7 @@ class User extends Authenticatable implements HasMedia
     public function team()
     {
         return $this->belongsToMany(Team::class, 'event_team_user')
-            ->withPivot('event_id', 'angular_uid')
+            ->withPivot('event_id', 'angular_uid', 'share_contact_data')
             ->withTimestamps();
     }
 

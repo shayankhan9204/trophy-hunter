@@ -13,5 +13,10 @@ class EventTeamUser extends Model
         'team_id',
         'user_id',
         'angular_uid',
+        'share_contact_data',
+    ];
+
+    protected $casts = [
+        'share_contact_data' => 'boolean',
     ];
 }

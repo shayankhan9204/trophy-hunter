@@ -57,7 +57,7 @@ class Event extends Model implements HasMedia
     public function teams()
     {
         return $this->belongsToMany(Team::class, 'event_team_user')
-            ->withPivot('user_id', 'angular_uid')
+            ->withPivot('user_id', 'angular_uid', 'share_contact_data')
             ->withTimestamps();
     }
 

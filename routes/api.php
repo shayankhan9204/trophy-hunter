@@ -16,12 +16,12 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
         Route::post('/submit/bag/{event_id?}', [EventController::class, 'submitBag']);
         Route::post('/submit/attendance/{event_id?}', [EventController::class, 'submitAttendance']);
         Route::post('/submit/safety-check', [EventController::class, 'submitSafetyCheck']);
+        Route::post('/share-contact-consent/{event_id?}', [ProfileController::class, 'updateContactConsent']);
     });
 
     Route::group(['prefix' => 'user'], function () {
         Route::post('/profile/update', [ProfileController::class, 'update']);
         Route::get('/team/{id?}', [ProfileController::class, 'myTeam']);
-
     });
 
     Route::get('/notifications/{id?}', [EventController::class, 'notifications']);

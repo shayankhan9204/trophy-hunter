@@ -128,6 +128,45 @@ class ProfileController extends Controller
         ]);
     }
 
+    public function updateContactConsent(Request $request, $event_id = null)
+    {
+        $eventId = $request->input('event_id', $event_id);
 
+        $validated = $request->validate([
+            'share_contact_data' => 'required|boolean',
+        ]);
+
+        if ($eventId) {
+            $request->merge(['event_id' => $eventId]);
+            $request->validate([
+                'event_id' => 'integer|exists:events,id',
+            ]);
+        }
+
+        $user = Auth::user();
+        $query = DB::table('event_team_user')
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at');
+
+        if ($eventId) {
+            $query->where('event_id', $eventId);
+        }
+
+        if (!empty($validated['team_id'])) {
+            $query->where('team_id', $validated['team_id']);
+        }
+
+        $shareConsent = $request->boolean('share_contact_data');
+
+        $updatedRows = $query->update([
+            'share_contact_data' => $shareConsent,
+            'updated_at'         => now(),
+        ]);
+
+        return APIResponse::success('Contact consent updated successfully', [
+            'share_contact_data' => $shareConsent,
+            'updated_records'    => $updatedRows,
+        ]);
+    }
 
 }
