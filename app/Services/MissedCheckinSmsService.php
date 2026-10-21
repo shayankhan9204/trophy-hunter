@@ -216,7 +216,10 @@ class MissedCheckinSmsService
     /** Build the SMS header line. */
     private function buildHeader(string $eventName, int $intervalNumber, string $dueTime): string
     {
-        return "{$eventName} Missed check-in (Interval {$intervalNumber}, due {$dueTime})";
+        return implode("\n", [
+            "Safety Alert: Missed \"I'm Safe\" check-ins for {$eventName}",
+            "Due: {$dueTime}",   
+        ]);
     }
 
     /**
