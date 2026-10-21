@@ -194,23 +194,22 @@ class MissedCheckinSmsService
      */
     public function toE164(string $phone): string
     {
-        // $normalized = preg_replace('/[\s\-\(\)]/', '', $phone);
+        $normalized = preg_replace('/[\s\-\(\)]/', '', $phone);
 
-        // // Already E.164
-        // if (str_starts_with($normalized, '+')) {
-        //     return $normalized;
-        // }
+        // Already E.164
+        if (str_starts_with($normalized, '+')) {
+            return $normalized;
+        }
 
-        // $cc = config('services.twilio.default_country_code', '61');
+        $cc = config('services.twilio.default_country_code', '61');
 
-        // if (str_starts_with($normalized, '0')) {
-        //     // "0412345678" → "+61412345678"
-        //     return '+' . $cc . substr($normalized, 1);
-        // }
+        if (str_starts_with($normalized, '0')) {
+            // "0412345678" → "+61412345678"
+            return '+' . $cc . substr($normalized, 1);
+        }
 
-        // Bare digits with country code already (no leading + or 0)
-        // return '+' . $normalized;
-        return '+' . $phone;
+        Bare digits with country code already (no leading + or 0)
+        return '+' . $normalized;
     }
 
     /** Build the SMS header line. */
