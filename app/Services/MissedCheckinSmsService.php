@@ -208,7 +208,7 @@ class MissedCheckinSmsService
             return '+' . $cc . substr($normalized, 1);
         }
 
-        Bare digits with country code already (no leading + or 0)
+        // Bare digits with country code already (no leading + or 0)
         return '+' . $normalized;
     }
 

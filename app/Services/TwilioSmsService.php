@@ -17,17 +17,20 @@ use Twilio\Rest\Client;
  */
 class TwilioSmsService
 {
-    private Client $client;
-    private string $from;
+    private ?Client $client = null;
+    private ?string $from = null;
 
     public function __construct()
     {
         $sid   = config('services.twilio.sid');
         $token = config('services.twilio.auth_token');
         $this->from = config('services.twilio.messaging_service_sid')
-            ?: config('services.twilio.from');
+            ?: config('services.twilio.from')
+            ?: null;
 
-        $this->client = new Client($sid, $token);
+        if (!empty($sid) && !empty($token)) {
+            $this->client = new Client($sid, $token);
+        }
     }
 
     /**
@@ -41,14 +44,20 @@ class TwilioSmsService
      */
     public function send(string $to, string $body): string
     {
+        if (! $this->client) {
+            throw new TwilioException('Twilio credentials (TWILIO_SID or TWILIO_AUTH_TOKEN) are missing or not configured.');
+        }
+
         $params = ['body' => $body];
 
         // Use messaging service SID if configured, otherwise a plain From number.
         $messagingServiceSid = config('services.twilio.messaging_service_sid');
-        if ($messagingServiceSid) {
+        if (! empty($messagingServiceSid)) {
             $params['messagingServiceSid'] = $messagingServiceSid;
-        } else {
+        } elseif (! empty($this->from)) {
             $params['from'] = $this->from;
+        } else {
+            throw new TwilioException('Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_FROM is configured.');
         }
 
         $message = $this->client->messages->create($to, $params);

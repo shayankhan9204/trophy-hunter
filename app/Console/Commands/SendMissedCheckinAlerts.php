@@ -49,7 +49,7 @@ class SendMissedCheckinAlerts extends Command
     {
         $isDryRun = (bool) $this->option('dry-run');
         $now      = Carbon::now();
-
+        
         $this->info(
             "Running missed check-in alert scan (grace=" . self::GRACE_MINUTES . "min)" .
             ($isDryRun ? ' [DRY RUN]' : '') .
