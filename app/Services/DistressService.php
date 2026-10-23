@@ -137,6 +137,8 @@ class DistressService
             $isFallback   = true;
         }
 
+        $formattedCoords = $this->formatCoordinatesToDDMMSSS($distressLat, $distressLng);
+
         // ── 3. Idempotency Guard ────────────────────────────────────────────────
         // Prevent duplicate Twilio dispatches if duplicate requests arrive within 60 seconds
         $cacheKey = sprintf('distress_sos_%d_%d_%d_%.4f_%.4f', $eventId, $teamId, $anglerId, $distressLat, $distressLng);
@@ -150,6 +152,7 @@ class DistressService
                 'distress_location' => [
                     'latitude'      => $distressLat,
                     'longitude'     => $distressLng,
+                    'formatted'     => $formattedCoords,
                     'is_fallback'   => $isFallback,
                     'location_code' => $locationCode,
                 ],
@@ -186,7 +189,7 @@ class DistressService
             'DISTRESS ALERT',
             "Event: {$event->name}",
             "Team: {$team->name}",
-            "Distress Location: ({$distressLng}, {$distressLat})",
+            "Distress Location: {$formattedCoords}",
             "Time: {$timeString}",
             'Registered Team Members:',
             implode("\n", $memberLines),
@@ -251,7 +254,7 @@ class DistressService
             $nearbyMessage = implode("\n", [
                 'DISTRESS ALERT',
                 "Team: {$team->name}",
-                "Location: ({$distressLng}, {$distressLat})",
+                "Distress Location: {$formattedCoords}",
                 "Distress Time: {$timeString}",
                 "Persons on Board: {$sosPersonsPhrase}",
                 "Boat Registration: {$sosBoatReg}",
@@ -348,6 +351,7 @@ class DistressService
             'distress_location'     => [
                 'latitude'          => $distressLat,
                 'longitude'         => $distressLng,
+                'formatted'         => $formattedCoords,
                 'is_fallback'       => $isFallback,
                 'location_code'     => $locationCode,
             ],
@@ -358,6 +362,63 @@ class DistressService
             'nearby_alerts_sent'    => $nearbyTeamsAlertsSent,
             'nearby_teams'          => $qualifyingTeamsData,
         ];
+    }
+
+    /**
+     * Format decimal latitude and longitude to DD MM SSS (Degrees Minutes Seconds).
+     *
+     * Example:
+     *   -33.8688, 151.2093 -> 'S33 52 008, E151 12 033'
+     *
+     * @param float|null $lat
+     * @param float|null $lng
+     * @return string
+     */
+    public function formatCoordinatesToDDMMSSS(?float $lat, ?float $lng): string
+    {
+        if ($lat === null || $lng === null) {
+            return 'N/A';
+        }
+
+        // Latitude
+        $latDir = $lat < 0 ? 'S' : 'N';
+        $absLat = abs($lat);
+        $latDeg = (int) floor($absLat);
+        $latMinFloat = ($absLat - $latDeg) * 60;
+        $latMin = (int) floor($latMinFloat);
+        $latSec = (int) round(($latMinFloat - $latMin) * 60);
+
+        if ($latSec >= 60) {
+            $latSec = 0;
+            $latMin++;
+        }
+        if ($latMin >= 60) {
+            $latMin = 0;
+            $latDeg++;
+        }
+
+        // Longitude
+        $lngDir = $lng < 0 ? 'W' : 'E';
+        $absLng = abs($lng);
+        $lngDeg = (int) floor($absLng);
+        $lngMinFloat = ($absLng - $lngDeg) * 60;
+        $lngMin = (int) floor($lngMinFloat);
+        $lngSec = (int) round(($lngMinFloat - $lngMin) * 60);
+
+        if ($lngSec >= 60) {
+            $lngSec = 0;
+            $lngMin++;
+        }
+        if ($lngMin >= 60) {
+            $lngMin = 0;
+            $lngDeg++;
+        }
+
+        return sprintf(
+            "%s%02d %02d %03d, %s%02d %02d %03d",
+            $latDir, $latDeg, $latMin, $latSec,
+            $lngDir, $lngDeg, $lngMin, $lngSec
+        );
     }
 
     /**

@@ -37,21 +37,41 @@
                                                 <select class="form-control custom-select" name="event_id">
                                                     <option value="" selected disabled>Select Event</option>
                                                     @foreach($events as $event)
-                                                        <option value="{{ $event->id }}">{{ $event->name ?? '' }}</option>
+                                                        <option value="{{ $event->id }}" {{ old('event_id') == $event->id ? 'selected' : '' }}>{{ $event->name ?? '' }}</option>
                                                     @endforeach
                                                 </select>
+                                                @error('event_id')
+                                                    <span class="text-danger">{{ $message }}</span>
+                                                @enderror
                                             </div>
                                         </div>
                                         <div class="col-md-12">
                                             <div class="form-group">
                                                 <label>Notification Title</label>
-                                                <input type="text" class="form-control" placeholder="Enter Title" name="title">
+                                                <input type="text" class="form-control" placeholder="Enter Title" name="title" value="{{ old('title') }}">
+                                                @error('title')
+                                                    <span class="text-danger">{{ $message }}</span>
+                                                @enderror
                                             </div>
                                         </div>
                                         <div class="col-md-12">
                                             <div class="form-group">
                                                 <label>Notification Message</label>
-                                                <textarea name="message" class="form-control" rows="4" placeholder="Enter Notification Message"></textarea>
+                                                <textarea name="message" class="form-control" rows="4" placeholder="Enter Notification Message">{{ old('message') }}</textarea>
+                                                @error('message')
+                                                    <span class="text-danger">{{ $message }}</span>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-12">
+                                            <div class="form-group">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input" id="send_sms" name="send_sms" value="1" {{ old('send_sms') ? 'checked' : '' }}>
+                                                    <label class="custom-control-label" for="send_sms">Send SMS</label>
+                                                </div>
+                                                @error('send_sms')
+                                                    <span class="text-danger">{{ $message }}</span>
+                                                @enderror
                                             </div>
                                         </div>
                                     </div>
