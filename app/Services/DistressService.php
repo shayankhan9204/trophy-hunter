@@ -362,6 +362,12 @@ class DistressService
 
     /**
      * Convert a phone number to E.164 for Twilio.
+     *
+     * Handles:
+     *   - '+61402066282' -> '+61402066282' (already E.164)
+     *   - '0409078051'   -> '+61409078051' (standard 10-digit AU mobile with leading 0)
+     *   - '402066282'    -> '+61402066282' (9-digit AU mobile with stripped leading 0)
+     *   - '61402066282'  -> '+61402066282' (bare digits with country code)
      */
     public function toE164(string $phone): string
     {
@@ -373,11 +379,22 @@ class DistressService
 
         $cc = config('services.twilio.default_country_code', '61');
 
+        // Standard local mobile: '0409078051' -> '+61409078051'
         if (str_starts_with($normalized, '0')) {
             return '+' . $cc . substr($normalized, 1);
         }
 
-        return '+' . $normalized;
+        // 9-digit AU mobile where Excel/import stripped the leading 0: '402066282' -> '+61402066282'
+        if (strlen($normalized) === 9 && str_starts_with($normalized, '4') && $cc === '61') {
+            return '+' . $cc . $normalized;
+        }
+
+        // Already has country code prefix without '+': '61402066282' -> '+61402066282'
+        if (str_starts_with($normalized, $cc)) {
+            return '+' . $normalized;
+        }
+
+        return '+' . $cc . $normalized;
     }
 
     /**
