@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\DistressController;
 use App\Http\Controllers\API\EventController;
 use App\Http\Controllers\API\ProfileController;
 
@@ -16,6 +17,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
         Route::post('/submit/bag/{event_id?}', [EventController::class, 'submitBag']);
         Route::post('/submit/attendance/{event_id?}', [EventController::class, 'submitAttendance']);
         Route::post('/submit/safety-check', [EventController::class, 'submitSafetyCheck']);
+        Route::post('/distress', [DistressController::class, 'distress']);
         Route::post('/share-contact-consent/{event_id?}', [ProfileController::class, 'updateContactConsent']);
     });
 
