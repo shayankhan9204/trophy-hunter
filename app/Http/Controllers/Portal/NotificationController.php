@@ -109,7 +109,7 @@ class NotificationController extends Controller
             ->distinct()
             ->get();
 
-        $smsBody     = "{$title}\n\n{$message}";
+        $smsBody     = "{$title}:\n\n{$message}";
         $sentCount   = 0;
         $failedCount = 0;
 
